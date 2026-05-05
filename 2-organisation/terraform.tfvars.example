@@ -1,0 +1,13 @@
+# Copy this file to terraform.tfvars and fill in your real values.
+# terraform.tfvars is gitignored — it never gets committed.
+
+region                = "eu-west-2"
+management_account_id = "YOUR_MANAGEMENT_ACCOUNT_ID"
+github_org            = "coolteddy"
+github_repo           = "aws-org-infra"
+
+tags = {
+  Project     = "aws-org-infra"
+  ManagedBy   = "terraform"
+  Environment = "management"
+}

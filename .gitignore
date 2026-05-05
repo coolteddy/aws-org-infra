@@ -1,0 +1,24 @@
+# Claude Code instruction file — local only, not for public repos
+CLAUDE.md
+
+# Terraform state — never commit
+*.tfstate
+*.tfstate.backup
+
+# Local variable values — copy from .tfvars.example, fill in real values, never commit
+*.tfvars
+!*.tfvars.example
+
+# Terraform working directory
+.terraform/
+.terraform.lock.hcl
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files (local developer overrides)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

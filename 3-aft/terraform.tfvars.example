@@ -1,0 +1,28 @@
+# Copy this file to terraform.tfvars and fill in your real values.
+# terraform.tfvars is gitignored — it never gets committed.
+#
+# NOTE: This layer is NOT applied in the POC.
+#       These values are here for reference when moving to production.
+#       Control Tower must be enrolled before this layer can be applied.
+
+region                = "eu-west-2"
+management_account_id = "YOUR_MANAGEMENT_ACCOUNT_ID"
+github_org            = "YOUR_GITHUB_ORG"
+
+# Account IDs created automatically when Control Tower is enrolled.
+# Find them in: AWS Organizations → Accounts
+log_archive_account_id = "YOUR_LOG_ARCHIVE_ACCOUNT_ID"
+audit_account_id       = "YOUR_AUDIT_ACCOUNT_ID"
+
+# Emails — must be unique per AWS account, cannot reuse existing emails.
+# Convention: use email aliases so they all route to one inbox.
+admin_email           = "aws+admin@yourdomain.com"
+log_archive_email     = "aws+logarchive@yourdomain.com"
+audit_email           = "aws+audit@yourdomain.com"
+shared_services_email = "aws+sharedservices@yourdomain.com"
+
+tags = {
+  Project     = "aws-org-infra"
+  ManagedBy   = "terraform"
+  Environment = "management"
+}

@@ -1,0 +1,12 @@
+# Copy this file to terraform.tfvars and fill in your real values.
+# terraform.tfvars is gitignored — it never gets committed.
+
+region            = "eu-west-2"
+state_bucket_name = "loadberry-org-tf-state-eu-west-2"
+lock_table_name   = "loadberry-org-tf-locks"
+
+tags = {
+  Project     = "aws-org-infra"
+  ManagedBy   = "terraform"
+  Environment = "management"
+}

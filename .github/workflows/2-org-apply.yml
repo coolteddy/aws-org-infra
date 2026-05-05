@@ -1,0 +1,60 @@
+# ------------------------------------------------------------------------------
+# Organisation — Terraform Apply
+#
+# Triggers when a PR is merged to main touching 2-organisation/.
+# Requires manual approval via the "org-production" GitHub Environment
+# before terraform apply runs — a human must explicitly approve.
+#
+# Setup required in GitHub:
+#   Repository → Settings → Environments → New environment → "org-production"
+#   Add required reviewers (yourself) so apply waits for approval.
+# ------------------------------------------------------------------------------
+
+name: Organisation Apply
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '2-organisation/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+
+    # This environment gate pauses the job until a reviewer approves.
+    # Create the "org-production" environment in GitHub repository settings.
+    # Without this, apply runs automatically on every merge — dangerous.
+    environment: org-production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/github-actions-aws-org-infra
+          aws-region: eu-west-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.6"
+
+      - name: Terraform Init
+        working-directory: 2-organisation
+        run: terraform init
+
+      # Apply runs non-interactively (-auto-approve).
+      # The human approval gate is the GitHub Environment above — not here.
+      # If this step fails, the GitHub Actions log shows the full error.
+      - name: Terraform Apply
+        working-directory: 2-organisation
+        run: terraform apply -auto-approve

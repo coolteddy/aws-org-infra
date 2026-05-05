@@ -1,0 +1,98 @@
+# ------------------------------------------------------------------------------
+# AFT — Terraform Plan
+#
+# Triggers on every PR that touches files in 3-aft/.
+# Same pattern as 2-org-plan.yml — runs plan, posts output as PR comment.
+#
+# NOTE: AFT code is commented out in the POC — this workflow will produce
+# a plan with no changes until the AFT module is uncommented and Control
+# Tower is enrolled. The workflow itself is correct and ready for production.
+# ------------------------------------------------------------------------------
+
+name: AFT Plan
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '3-aft/**'
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/github-actions-aws-org-infra
+          aws-region: eu-west-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.6"
+
+      - name: Terraform Init
+        working-directory: 3-aft
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: 3-aft
+        run: terraform validate
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: 3-aft
+        run: |
+          terraform plan -no-color -out=tfplan 2>&1 | tee plan_output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Post plan to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('3-aft/plan_output.txt', 'utf8');
+            const maxLength = 65000;
+            const truncated = plan.length > maxLength
+              ? plan.substring(0, maxLength) + '\n\n... (truncated — see Actions log for full output)'
+              : plan;
+
+            const body = `## Terraform Plan — \`3-aft/\`
+
+            > ⚠️ **AFT apply is gated.** Applying this layer deploys the AFT pipeline (~$40-55/month)
+            > and any account requests create AWS accounts with a 90-day closure wait.
+            > Ensure this is intentional before approving the apply workflow.
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${truncated}
+            \`\`\`
+
+            </details>
+
+            *Triggered by commit \`${{ github.sha }}\` on branch \`${{ github.head_ref }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Check plan exit code
+        if: steps.plan.outputs.exit_code != '0'
+        run: exit 1

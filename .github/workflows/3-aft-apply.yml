@@ -1,0 +1,64 @@
+# ------------------------------------------------------------------------------
+# AFT — Terraform Apply
+#
+# Triggers when a PR is merged to main touching 3-aft/.
+# Requires manual approval via the "aft-production" GitHub Environment.
+#
+# This workflow has a SEPARATE environment from org-production because
+# AFT carries significant consequences:
+#   - Deploying AFT: ~$40-55/month in ongoing infrastructure cost
+#   - Account requests: 90-day closure wait per vended account
+#
+# A separate approval gate forces a conscious decision before AFT is applied.
+# An approver for org changes should not automatically approve AFT changes.
+#
+# Setup required in GitHub:
+#   Repository → Settings → Environments → New environment → "aft-production"
+#   Add required reviewers and consider adding a wait timer (e.g. 30 minutes)
+#   so there is a window to cancel an accidental apply.
+# ------------------------------------------------------------------------------
+
+name: AFT Apply
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '3-aft/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+
+    # Separate environment from org-production — AFT requires a deliberate,
+    # explicit approval due to cost and 90-day account commitment implications.
+    environment: aft-production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/github-actions-aws-org-infra
+          aws-region: eu-west-2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.6"
+
+      - name: Terraform Init
+        working-directory: 3-aft
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: 3-aft
+        run: terraform apply -auto-approve
