@@ -1,5 +1,5 @@
 # aws-org-infra
-## AWS Organisation Foundation — Multi-Tenant SaaS Landing Zone
+## AWS Organisation Foundation - Multi-Tenant SaaS Landing Zone
 
 > **Version:** 1.0
 > **Status:** Active
@@ -11,7 +11,7 @@
 
 This repository contains the Terraform code for the **AWS organisation foundation**.
 It provisions and manages the top-level infrastructure that all tenants and products
-share — the landing zone, account structure, security guardrails, and account vending pipeline.
+share - the landing zone, account structure, security guardrails, and account vending pipeline.
 
 **This repo has no knowledge of any specific product or tenant.**
 Products and tenants are defined in separate repositories that consume accounts
@@ -36,7 +36,7 @@ vended by this repo.
 aws-org-infra/
 │
 ├── CLAUDE.md                        ← Claude Code instructions (auto-loaded)
-├── README.md                        ← this file — high-level overview
+├── README.md                        ← this file - high-level overview
 ├── .gitignore
 │
 ├── 1-bootstrap/                     ← run ONCE locally, never again
@@ -88,9 +88,9 @@ aws-org-infra/
 
 ---
 
-## The Four Layers — Mental Model
+## The Four Layers - Mental Model
 
-### Layer 1 — Management Account
+### Layer 1 - Management Account
 
 The **"landlord" account**. Owns the Organisation. No workloads ever run here.
 
@@ -99,7 +99,7 @@ Runs: Organizations, Control Tower, IAM Identity Center, AFT, Billing
 Rule: NEVER deploy application workloads here
 ```
 
-### Layer 2 — Organisational Units (OUs)
+### Layer 2 - Organisational Units (OUs)
 
 Folders that group accounts. SCPs on an OU apply to ALL accounts inside it.
 
@@ -112,13 +112,13 @@ Root → OU → Child OU → Account
 You can only tighten restrictions, never loosen
 ```
 
-### Layer 3 — Service Control Policies (SCPs)
+### Layer 3 - Service Control Policies (SCPs)
 
 Set the **maximum permissions ceiling** in an account. IAM grants within that ceiling.
 
 ```
 SCP does NOT grant permissions
-SCP sets the ceiling — IAM grants within that ceiling
+SCP sets the ceiling - IAM grants within that ceiling
 
 Example:
   SCP:    DENY all regions except eu-west-2
@@ -126,7 +126,7 @@ Example:
   Result: EC2 only works in eu-west-2
 ```
 
-### Layer 4 — Member Accounts
+### Layer 4 - Member Accounts
 
 Where actual work happens. Completely isolated by default.
 
@@ -135,7 +135,7 @@ One account per tenant per environment
 ├── Blast radius contained per account
 ├── Cost tracked per tenant
 ├── Security incidents isolated
-└── Dev cannot touch prod — physically impossible
+└── Dev cannot touch prod - physically impossible
 ```
 
 ---
@@ -182,16 +182,16 @@ ROOT (Management Account)
 | IaC tool | Terraform | ✅ Confirmed |
 | Org setup | AWS Control Tower | ✅ Confirmed |
 | Account vending | AFT (git-driven) | ✅ Confirmed |
-| Human access | IAM Identity Center — SSO only | ✅ Confirmed |
-| CI/CD auth | GitHub OIDC — no static keys | ✅ Confirmed |
+| Human access | IAM Identity Center - SSO only | ✅ Confirmed |
+| CI/CD auth | GitHub OIDC - no static keys | ✅ Confirmed |
 | CT home region | `eu-west-2` | ✅ Confirmed |
 | State backend | S3 + DynamoDB in management account | ✅ Confirmed |
 | Bootstrap method | Temp IAM user → delete after SSO configured | ✅ Confirmed |
 | Repo naming | `aws-org-infra` (generic, public safe) | ✅ Confirmed |
-| Modules repo | Separate — `aws-terraform-modules` | ✅ Confirmed |
+| Modules repo | Separate - `aws-terraform-modules` | ✅ Confirmed |
 | Product repos | Separate per product | ✅ Confirmed |
-| POC approach | Option D — apply bootstrap + org; AFT code-only (no apply) | ✅ Confirmed |
-| Control Tower | Not enrolled for POC — deferred to production | ✅ Confirmed |
+| POC approach | Option D - apply bootstrap + org; AFT code-only (no apply) | ✅ Confirmed |
+| Control Tower | Not enrolled for POC - deferred to production | ✅ Confirmed |
 | AFT in POC | Written as commented educational code, never applied | ✅ Confirmed |
 
 ---
@@ -200,7 +200,7 @@ ROOT (Management Account)
 
 | Repo | Purpose |
 |------|---------|
-| `aws-org-infra` | This repo — organisation foundation |
+| `aws-org-infra` | This repo - organisation foundation |
 | `aws-terraform-modules` | Reusable Terraform modules (versioned) |
 | `{product}-infra` | Per-product tenant infrastructure |
 

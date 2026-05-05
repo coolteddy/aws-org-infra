@@ -40,6 +40,10 @@ jobs:
     # explicit approval due to cost and 90-day account commitment implications.
     environment: aft-production
 
+    env:
+      TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+      TF_VAR_github_org: ${{ vars.GH_ORG }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

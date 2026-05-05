@@ -1,6 +1,6 @@
-# Layer 3 — AFT (Account Factory for Terraform)
+# Layer 3 - AFT (Account Factory for Terraform)
 
-> **STATUS: CODE ONLY — DO NOT APPLY IN POC**
+> **STATUS: CODE ONLY - DO NOT APPLY IN POC**
 >
 > AFT code is written with educational comments but never applied in this POC.
 > Cost when live: ~$40–55/month (NAT Gateway runs 24/7).
@@ -20,15 +20,15 @@ Control Tower creates the AWS account
         ↓
 AFT runs global customisations (GuardDuty, Security Hub, Config recorder)
         ↓
-Account is ready — SSO access configured (~20 minutes)
+Account is ready - SSO access configured (~20 minutes)
 ```
 
 ## Prerequisites
 
 Before applying AFT:
-1. **Control Tower must be enrolled** — AFT requires Control Tower as its foundation
-2. **Layer 2 must be applied** — AFT uses the S3 remote state backend
-3. **Log Archive and Audit account IDs** — created by Control Tower, needed as inputs
+1. **Control Tower must be enrolled** - AFT requires Control Tower as its foundation
+2. **Layer 2 must be applied** - AFT uses the S3 remote state backend
+3. **Log Archive and Audit account IDs** - created by Control Tower, needed as inputs
 
 ## What AFT Deploys (When Applied)
 

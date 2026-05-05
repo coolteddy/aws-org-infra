@@ -1,8 +1,8 @@
-# Account Customisations — Global
+# Account Customisations - Global
 
 These files run automatically in **every account** vended by AFT, immediately after the account is created.
 
-Think of this as a baseline setup script — every account gets the same security foundation regardless of which tenant it belongs to.
+Think of this as a baseline setup script - every account gets the same security foundation regardless of which tenant it belongs to.
 
 ## What Runs in Every Account
 
@@ -17,7 +17,7 @@ Think of this as a baseline setup script — every account gets the same securit
 Without these customisations, every new account is a blank slate:
 - No threat detection (GuardDuty off by default)
 - No compliance visibility (Security Hub off by default)
-- No Config recorder (org Config rules cannot evaluate — see `2-organisation/config_rules.tf`)
+- No Config recorder (org Config rules cannot evaluate - see `2-organisation/config_rules.tf`)
 
 This is exactly the problem we hit in the POC when applying Config rules: `NoAvailableConfigurationRecorder`. If AFT was deployed, `baseline-iam.tf` would solve it automatically in every account.
 

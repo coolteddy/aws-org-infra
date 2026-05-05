@@ -29,6 +29,12 @@ jobs:
     name: Terraform Plan
     runs-on: ubuntu-latest
 
+    # Pass Terraform variables from GitHub repository variables.
+    # TF_VAR_ prefix is automatically picked up by Terraform.
+    env:
+      TF_VAR_management_account_id: ${{ vars.MANAGEMENT_ACCOUNT_ID }}
+      TF_VAR_github_org: ${{ vars.GH_ORG }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

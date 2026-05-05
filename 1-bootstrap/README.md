@@ -1,10 +1,10 @@
-# Layer 1 — Bootstrap
+# Layer 1 - Bootstrap
 
 This layer runs **once only**, locally, using a temporary IAM user. It creates the S3 bucket and DynamoDB table that all other layers use for remote Terraform state.
 
 ## Why a Separate Bootstrap Layer
 
-Layers 2 and 3 store their Terraform state in an S3 bucket. That bucket must exist before those layers can run — which means something has to create it first. The bootstrap layer creates it using local state, then is never touched again.
+Layers 2 and 3 store their Terraform state in an S3 bucket. That bucket must exist before those layers can run - which means something has to create it first. The bootstrap layer creates it using local state, then is never touched again.
 
 ```
 Bootstrap creates S3 bucket + DynamoDB
@@ -46,7 +46,7 @@ cd 1-bootstrap/
 cp terraform.tfvars.example terraform.tfvars
 # Edit terraform.tfvars with your bucket and table names
 
-# 4. Initialise — downloads the AWS provider locally
+# 4. Initialise - downloads the AWS provider locally
 terraform init
 
 # 5. Review what will be created
@@ -61,11 +61,11 @@ terraform apply
 | Resource | Purpose |
 |----------|---------|
 | S3 bucket | Stores Terraform state files for all layers. Versioning + encryption enabled. |
-| DynamoDB table | Locks state during `terraform apply` — prevents two applies running simultaneously. |
+| DynamoDB table | Locks state during `terraform apply` - prevents two applies running simultaneously. |
 
 ## After Bootstrap
 
-The local `terraform.tfstate` file stays on your machine only — never commit it. It can be safely discarded after bootstrap since the resources it tracks (S3 + DynamoDB) are permanent and protected by `prevent_destroy`.
+The local `terraform.tfstate` file stays on your machine only - never commit it. It can be safely discarded after bootstrap since the resources it tracks (S3 + DynamoDB) are permanent and protected by `prevent_destroy`.
 
 ## Tools and Versions
 
