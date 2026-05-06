@@ -22,13 +22,6 @@ variable "github_repo" {
   default     = "aws-org-infra"
 }
 
-variable "shared_services_email" {
-  description = "Email address on the shared-services account — required by Terraform but ignored in plan (cannot be changed via API)"
-  type        = string
-  sensitive   = true
-  # no default — must be provided via terraform.tfvars (gitignored)
-}
-
 variable "tags" {
   description = "Tags applied to all resources in this layer"
   type        = map(string)
