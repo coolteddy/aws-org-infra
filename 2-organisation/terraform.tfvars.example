@@ -6,6 +6,10 @@ management_account_id = "YOUR_MANAGEMENT_ACCOUNT_ID"
 github_org            = "coolteddy"
 github_repo           = "aws-org-infra"
 
+# Email on the shared-services account (existing account — cannot be changed via API)
+# Use the actual email on the account — Terraform requires it but ignores changes to it
+shared_services_email = "YOUR_SHARED_SERVICES_ACCOUNT_EMAIL"
+
 tags = {
   Project     = "aws-org-infra"
   ManagedBy   = "terraform"
