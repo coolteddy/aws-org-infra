@@ -55,7 +55,26 @@
 # }
 
 # ------------------------------------------------------------------------------
-# Add new accounts below this line following the same pattern.
-# Each account gets its own resource block.
-# See ACCOUNT.md for the full creation workflow.
+# sandbox
+#
+# Development and POC workload account.
+# Planned workloads: EKS, ALB, NLB, Transit Gateway attachment, networking POC.
 # ------------------------------------------------------------------------------
+
+resource "aws_organizations_account" "sandbox" {
+  name      = "sandbox"
+  email     = var.sandbox_email
+  parent_id = aws_organizations_organizational_unit.tenant_a.id
+
+  close_on_deletion = false
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    account_type = "sandbox"
+    purpose      = "eks-networking-poc"
+    managed_by   = "terraform"
+  }
+}
