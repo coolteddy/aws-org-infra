@@ -6,6 +6,10 @@ management_account_id = "YOUR_MANAGEMENT_ACCOUNT_ID"
 github_org            = "coolteddy"
 github_repo           = "aws-org-infra"
 
+# Unique email for the sandbox account — use a Gmail alias
+# e.g. you+aws-sandbox@gmail.com (routes to your main inbox, unique to AWS)
+sandbox_email = "you+aws-sandbox@gmail.com"
+
 tags = {
   Project     = "aws-org-infra"
   ManagedBy   = "terraform"

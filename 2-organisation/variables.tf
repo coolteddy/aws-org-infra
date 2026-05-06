@@ -22,6 +22,14 @@ variable "github_repo" {
   default     = "aws-org-infra"
 }
 
+variable "sandbox_email" {
+  description = "Unique email address for the sandbox account (use a Gmail alias e.g. you+aws-sandbox@gmail.com)"
+  type        = string
+  sensitive   = true
+  # no default - passed via GitHub Secret SANDBOX_EMAIL in CI/CD
+  # locally: add to terraform.tfvars (gitignored)
+}
+
 variable "tags" {
   description = "Tags applied to all resources in this layer"
   type        = map(string)
