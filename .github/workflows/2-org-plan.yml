@@ -38,18 +38,18 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Exchange GitHub OIDC token for temporary AWS credentials.
       # No secrets stored in GitHub — credentials expire after the job ends.
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/github-actions-aws-org-infra
           aws-region: eu-west-2
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "~> 1.6"
 
@@ -74,7 +74,7 @@ jobs:
       # Post the plan output as a comment on the PR so reviewers can see
       # exactly what will be created, changed, or destroyed before merging.
       - name: Post plan to PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const fs = require('fs');
