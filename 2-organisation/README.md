@@ -204,6 +204,37 @@ terraform apply \
 
 All human access goes through SSO. No IAM users anywhere.
 
+### Accessing the Console via SSO
+
+**Step 1 - Login via CLI:**
+```bash
+aws sso login --profile YOUR_PROFILE
+```
+
+**Step 2 - Open the SSO portal in your browser:**
+```
+https://d-xxxxxxxxxx.awsapps.com/start/
+```
+Replace with your actual SSO start URL (found in Identity Center → Settings).
+Select the account → click "Management console".
+
+**Step 3 - Verify which account you are in:**
+```bash
+aws sts get-caller-identity --profile YOUR_PROFILE
+```
+
+**Profile quick reference:**
+
+| Profile | Account | Used for |
+|---------|---------|---------|
+| `org-bootstrap` | Management | Local Terraform runs, break-glass only |
+| `my-admin` | Management | Day-to-day admin via SSO |
+| `my-sandbox` | Sandbox | EKS, networking, application POC |
+
+> **Note:** Profile names are personal - use your own naming convention.
+> The `sso_session` block is shared across profiles pointing to the same Identity Center instance.
+> One `aws sso login` refreshes all profiles sharing the same session.
+
 ### Permission Sets
 
 | Permission Set | Policy | Session | Used For |
@@ -341,3 +372,163 @@ Workloads/Tenant-A
 Platform:  log-archive, audit, shared-services
 Tenant:    tenant-a-dev, tenant-a-staging, tenant-a-prod
 ```
+
+---
+
+## Account Creation
+
+AWS accounts are managed via `accounts.tf` in this layer. No AFT required.
+One Terraform resource block = one AWS account. Git-driven, fully auditable.
+
+### Pattern 1 - Terraform `aws_organizations_account` (recommended)
+
+This is what we use. Every account is a resource block in `accounts.tf`.
+
+**Creating a new account:**
+```hcl
+resource "aws_organizations_account" "tenant_a_dev" {
+  name      = "tenant-a-dev"
+  email     = var.tenant_a_dev_email
+  parent_id = aws_organizations_organizational_unit.tenant_a.id
+
+  # close_on_deletion = false (default):
+  # Removing this block from code does NOT close the real AWS account.
+  # Terraform just stops tracking it. The account continues to exist.
+  close_on_deletion = false
+
+  # prevent_destroy = true:
+  # Terraform refuses to destroy this resource unless you explicitly
+  # remove this flag first. Protects against accidental account removal.
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    tenant      = "tenant-a"
+    environment = "dev"
+    managed_by  = "terraform"
+  }
+}
+```
+
+**Approval flow:**
+```
+Engineer creates tenant-a-dev.tf on a branch
+        ↓
+PR opened - GitHub Actions runs terraform plan
+        ↓
+Plan shows: 1 account to create, in correct OU with correct tags
+        ↓
+Team reviews the plan in the PR
+        ↓
+PR merged - org-production environment gate triggers
+        ↓
+Reviewer approves in GitHub
+        ↓
+terraform apply creates the account (~2 minutes)
+```
+
+**Importing an existing account into Terraform management:**
+
+If an account already exists (created manually or via console), import it rather than recreating:
+```bash
+# General pattern - replace with your actual account ID
+terraform import aws_organizations_account.your_account_name YOUR_ACCOUNT_ID
+
+# Example
+terraform import aws_organizations_account.sandbox 123456789012
+```
+
+Then add the matching resource block to `accounts.tf` with `prevent_destroy = true`.
+
+> **Note on email addresses:** AWS requires a globally unique email per account.
+> Use email aliases: `aws+tenant-a-dev@yourdomain.com`
+> All aliases can route to the same inbox.
+
+**What this does NOT do automatically (unlike AFT):**
+- Enable GuardDuty in the new account
+- Enable Security Hub
+- Start the Config recorder
+
+After account creation, either enable these manually (switch role → console)
+or use AWS Systems Manager Quick Setup to baseline all accounts at once.
+
+---
+
+### Pattern 2 - AWS Service Catalog Account Vending Machine (AVM)
+
+A lighter AWS-native alternative to AFT. Uses AWS Service Catalog to offer an
+"account request" product that engineers can order via a self-service portal.
+
+**How it works:**
+```
+Admin creates a Service Catalog Portfolio + Product (account template)
+        ↓
+Engineer goes to Service Catalog → launches the product
+        ↓
+Fills in: account name, email, OU, tags
+        ↓
+CloudFormation creates the account via Organizations API
+        ↓
+Optional: CloudFormation StackSet runs baseline config in the new account
+```
+
+**Pros vs AFT:**
+- No NAT Gateway - no ongoing cost
+- No CodePipeline to maintain
+- Native AWS UI - no GitHub dependency
+- Simpler to set up
+
+**Cons vs AFT:**
+- Not git-driven (console-based, not PR-based)
+- Less automation - customisations need StackSets separately
+- Harder to version control account requests
+
+**When to use:** When you want a self-service portal without the full AFT pipeline cost,
+and your team is comfortable with the AWS console.
+
+---
+
+### Pattern 3 - AWS CLI + Terraform Import (hybrid)
+
+The simplest approach. Create accounts manually via CLI, then bring them under
+Terraform management via import.
+
+**Step 1 - Create the account via CLI:**
+```bash
+aws organizations create-account \
+  --account-name "tenant-a-dev" \
+  --email "aws+tenant-a-dev@yourdomain.com" \
+  --iam-user-access-to-billing ALLOW \
+  --profile org-bootstrap
+
+# Check creation status (takes 1-2 minutes)
+aws organizations describe-create-account-status \
+  --create-account-request-id <request-id-from-above> \
+  --profile org-bootstrap
+```
+
+**Step 2 - Add the resource block to accounts.tf:**
+```hcl
+resource "aws_organizations_account" "tenant_a_dev" {
+  name      = "tenant-a-dev"
+  email     = var.tenant_a_dev_email
+  parent_id = aws_organizations_organizational_unit.tenant_a.id
+
+  close_on_deletion = false
+  lifecycle { prevent_destroy = true }
+}
+```
+
+**Step 3 - Import into Terraform state:**
+```bash
+terraform import aws_organizations_account.tenant_a_dev ACCOUNT_ID_FROM_STEP_1
+```
+
+**Step 4 - Verify:**
+```bash
+terraform plan  # should show: no changes
+```
+
+**When to use:** One-off account creation where you need it immediately without
+waiting for a PR review cycle. Import brings it under proper management afterwards.

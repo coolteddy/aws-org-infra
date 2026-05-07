@@ -170,8 +170,30 @@ ROOT (Management Account)
 | Layer | README | What it covers |
 |-------|--------|---------------|
 | Bootstrap | [1-bootstrap/README.md](1-bootstrap/README.md) | One-time setup, S3 + DynamoDB, commands |
-| Organisation | [2-organisation/README.md](2-organisation/README.md) | SCPs, Config rules, SSO, OIDC, naming |
+| Organisation | [2-organisation/README.md](2-organisation/README.md) | SCPs, Config rules, SSO, OIDC, naming, account creation patterns |
 | AFT | [3-aft/README.md](3-aft/README.md) | Account vending, customisations, adding tenants |
+| Accounts | [ACCOUNT.md](ACCOUNT.md) | Account inventory, purposes, future plans, creation workflow |
+
+---
+
+## Adding a New Tenant Account
+
+Accounts are managed via `accounts.tf` in `2-organisation/`. No AFT required.
+Three patterns are available - see [2-organisation/README.md](2-organisation/README.md) for full details.
+
+**Pattern 1 (recommended) - Terraform driven:**
+```
+1. Add a resource block to 2-organisation/accounts.tf
+2. Open a PR - GitHub Actions runs terraform plan
+3. Review the plan (correct OU, tags, email?)
+4. Merge - org-production approval gate triggers
+5. Approve in GitHub - account is created (~2 minutes)
+6. Login via SSO: aws sso login --profile tenant-a-dev
+```
+
+**Pattern 2** - AWS Service Catalog AVM (self-service portal, no git required)
+
+**Pattern 3** - AWS CLI + terraform import (fastest, then bring under management)
 
 ---
 
