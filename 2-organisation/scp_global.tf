@@ -24,8 +24,11 @@ locals {
 # Blocks any AWS action outside the approved region list.
 #
 # Uses NotAction instead of Action — because some services are global
-# (IAM, STS, Route53, CloudFront) and don't operate in a specific region.
+# (IAM, STS, Route53, CloudFront, ACM) and don't operate in a specific region.
 # If we blocked Action: "*", we'd break those global services.
+# ACM is included because CloudFront certificates must be provisioned in us-east-1
+# regardless of where workloads run — without this exemption, acm:RequestCertificate
+# in us-east-1 would be denied.
 # NotAction means: "deny everything EXCEPT this list of global services".
 # ------------------------------------------------------------------------------
 
@@ -46,6 +49,7 @@ resource "aws_organizations_policy" "deny_unsupported_regions" {
           "support:*",
           "trustedadvisor:*",
           "cloudfront:*",
+          "acm:*",
           "route53:*",
           "budgets:*",
           "ce:*",
