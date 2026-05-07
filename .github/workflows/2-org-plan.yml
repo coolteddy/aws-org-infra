@@ -43,7 +43,7 @@ jobs:
       # Exchange GitHub OIDC token for temporary AWS credentials.
       # No secrets stored in GitHub — credentials expire after the job ends.
       - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v5
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ vars.MANAGEMENT_ACCOUNT_ID }}:role/github-actions-aws-org-infra
           aws-region: eu-west-2
