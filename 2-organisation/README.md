@@ -228,8 +228,8 @@ aws sts get-caller-identity --profile YOUR_PROFILE
 | Profile | Account | Used for |
 |---------|---------|---------|
 | `org-bootstrap` | Management | Local Terraform runs, break-glass only |
-| `setnay-admin` | Management | Day-to-day admin via SSO |
-| `setnay-sandbox` | Sandbox | EKS, networking, application POC |
+| `my-admin` | Management | Day-to-day admin via SSO |
+| `my-sandbox` | Sandbox | EKS, networking, application POC |
 
 > **Note:** Profile names are personal - use your own naming convention.
 > The `sso_session` block is shared across profiles pointing to the same Identity Center instance.
