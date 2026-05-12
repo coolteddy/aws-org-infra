@@ -51,6 +51,7 @@ resource "aws_organizations_policy" "deny_unsupported_regions" {
           "cloudfront:*",
           "acm:*",
           "route53:*",
+          "route53domains:*",
           "budgets:*",
           "ce:*",
           "organizations:*",
@@ -93,9 +94,9 @@ resource "aws_organizations_policy" "deny_iam_user_creation" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "DenyIAMUserCreation"
-        Effect   = "Deny"
-        Action   = [
+        Sid    = "DenyIAMUserCreation"
+        Effect = "Deny"
+        Action = [
           "iam:CreateUser",
           "iam:CreateAccessKey"
         ]
