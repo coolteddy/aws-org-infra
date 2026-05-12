@@ -197,6 +197,37 @@ Three patterns are available - see [2-organisation/README.md](2-organisation/REA
 
 ---
 
+## Cross-Repo Deployment Model
+
+`aws-org-infra` owns organisation-level deployment prerequisites for the other
+infrastructure repos.
+
+Deployment flow:
+
+```
+GitHub Actions in a downstream repo
+  -> assumes a repo-specific gateway role in the management account
+  -> assumes the target account access role
+  -> Terraform manages resources in that target account
+```
+
+Current downstream targets:
+
+| Repo | Target account | Purpose |
+|------|----------------|---------|
+| `aws-shared-services-infra` | shared-services | Shared networking and platform services |
+| `aws-sandbox-infra` | sandbox | POC workload infrastructure |
+
+Account IDs, role ARNs, and other environment-specific values are configured in
+GitHub Actions variables or secrets. They are not committed to this repository.
+
+AWS RAM organization sharing is enabled here so RAM can work with AWS
+Organizations. This does not create resource shares or grant access by itself.
+Actual resource shares, such as Transit Gateway sharing, are created only in the
+account and repo that owns the resource.
+
+---
+
 ## Decisions Log
 
 | Decision | Value | Status |

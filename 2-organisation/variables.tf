@@ -22,6 +22,25 @@ variable "github_repo" {
   default     = "aws-org-infra"
 }
 
+variable "github_shared_services_repo" {
+  description = "GitHub repository name for shared-services Terraform"
+  type        = string
+  default     = "aws-shared-services-infra"
+}
+
+variable "github_sandbox_repo" {
+  description = "GitHub repository name for sandbox Terraform"
+  type        = string
+  default     = "aws-sandbox-infra"
+}
+
+variable "shared_services_account_id" {
+  description = "AWS account ID for shared-services — used by the GitHub OIDC gateway role"
+  type        = string
+  sensitive   = true
+  # no default — must be provided via terraform.tfvars or GitHub Actions variables/secrets
+}
+
 variable "sandbox_email" {
   description = "Unique email address for the sandbox account (use a Gmail alias e.g. you+aws-sandbox@gmail.com)"
   type        = string

@@ -22,8 +22,8 @@
 # ------------------------------------------------------------------------------
 
 resource "aws_iam_openid_connect_provider" "github" {
-  url             = "https://token.actions.githubusercontent.com"
-  client_id_list  = ["sts.amazonaws.com"]
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
 
   # GitHub's TLS certificate thumbprint.
   # AWS verifies this when fetching GitHub's public JWKS keys.
@@ -82,6 +82,136 @@ resource "aws_iam_role" "github_aws_org_infra" {
 resource "aws_iam_role_policy_attachment" "github_aws_org_infra_admin" {
   role       = aws_iam_role.github_aws_org_infra.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
+# ------------------------------------------------------------------------------
+# IAM Role — aws-shared-services-infra
+#
+# This is a management-account gateway role for the shared-services Terraform
+# repo. GitHub assumes this role first using OIDC. The inline policy below then
+# allows this role to assume OrganizationAccountAccessRole in the shared-services
+# account, where the actual shared infrastructure is deployed.
+#
+# Flow:
+#   GitHub aws-shared-services-infra
+#     -> management account gateway role
+#     -> shared-services OrganizationAccountAccessRole
+#     -> TGW, RAM share, ECR, Route 53, shared platform resources
+# ------------------------------------------------------------------------------
+
+resource "aws_iam_role" "github_aws_shared_services_infra" {
+  name        = "github-actions-aws-shared-services-infra"
+  description = "Gateway role assumed by GitHub Actions in the aws-shared-services-infra repo."
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "GitHubOIDCTrust"
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.github.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_shared_services_repo}:*"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# Allow the shared-services gateway role to enter only the shared-services
+# account. The target role is the Organizations-created admin role for this POC.
+resource "aws_iam_role_policy" "github_aws_shared_services_infra_assume_role" {
+  name = "AssumeSharedServicesAccount"
+  role = aws_iam_role.github_aws_shared_services_infra.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AssumeSharedServicesAccount"
+        Effect = "Allow"
+        Action = "sts:AssumeRole"
+        Resource = [
+          "arn:aws:iam::${var.shared_services_account_id}:role/OrganizationAccountAccessRole"
+        ]
+      }
+    ]
+  })
+}
+
+# ------------------------------------------------------------------------------
+# IAM Role — aws-sandbox-infra
+#
+# This is a management-account gateway role for the sandbox Terraform repo.
+# GitHub assumes this role first using OIDC. The inline policy below then allows
+# this role to assume OrganizationAccountAccessRole in the sandbox account, where
+# sandbox infrastructure such as VPC, EKS, ALB and TGW attachments are deployed.
+#
+# Flow:
+#   GitHub aws-sandbox-infra
+#     -> management account gateway role
+#     -> sandbox OrganizationAccountAccessRole
+#     -> sandbox workload/networking resources
+# ------------------------------------------------------------------------------
+
+resource "aws_iam_role" "github_aws_sandbox_infra" {
+  name        = "github-actions-aws-sandbox-infra"
+  description = "Gateway role assumed by GitHub Actions in the aws-sandbox-infra repo."
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "GitHubOIDCTrust"
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.github.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_sandbox_repo}:*"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# Allow the sandbox gateway role to enter only the Terraform-managed sandbox
+# account. The target role is the Organizations-created admin role for this POC.
+resource "aws_iam_role_policy" "github_aws_sandbox_infra_assume_role" {
+  name = "AssumeSandboxAccount"
+  role = aws_iam_role.github_aws_sandbox_infra.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AssumeSandboxAccount"
+        Effect = "Allow"
+        Action = "sts:AssumeRole"
+        Resource = [
+          "arn:aws:iam::${aws_organizations_account.sandbox.id}:role/OrganizationAccountAccessRole"
+        ]
+      }
+    ]
+  })
 }
 
 # ------------------------------------------------------------------------------
