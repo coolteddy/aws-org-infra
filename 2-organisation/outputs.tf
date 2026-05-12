@@ -40,6 +40,18 @@ output "github_actions_role_arn" {
   sensitive   = true
 }
 
+output "github_shared_services_role_arn" {
+  description = "ARN of the GitHub Actions gateway role for aws-shared-services-infra"
+  value       = aws_iam_role.github_aws_shared_services_infra.arn
+  sensitive   = true
+}
+
+output "github_sandbox_role_arn" {
+  description = "ARN of the GitHub Actions gateway role for aws-sandbox-infra"
+  value       = aws_iam_role.github_aws_sandbox_infra.arn
+  sensitive   = true
+}
+
 output "sso_instance_arn" {
   description = "IAM Identity Center instance ARN — needed when adding user assignments"
   value       = local.sso_instance_arn
