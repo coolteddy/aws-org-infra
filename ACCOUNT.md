@@ -57,7 +57,7 @@ Why shared?
 
 ---
 
-### poc-dev (Workloads/Tenant-A)
+### sandbox (Workloads/Tenant-A)
 
 Development and POC workload account.
 
@@ -162,6 +162,12 @@ All new accounts go through a PR review - creating an AWS account has a
 90-day closure commitment, so human approval is required.
 
 ```
+0. Allocate a CIDR in CIDR.md FIRST
+   - Pick the next available /16 from the tenant range
+   - Mark it as allocated (account name + environment)
+   - Confirm no conflict with existing entries
+   - This must be done before writing any Terraform
+
 1. Add resource block to 2-organisation/accounts.tf
    (one block per account - see template below)
 
@@ -173,6 +179,7 @@ All new accounts go through a PR review - creating an AWS account has a
    - Correct OU?
    - Correct email? (must be globally unique)
    - Correct tags for billing?
+   - CIDR.md updated with the new allocation?
 
 4. Merge to main
    - org-production environment gate triggers
@@ -180,7 +187,7 @@ All new accounts go through a PR review - creating an AWS account has a
 
 5. terraform apply creates the account (~2 minutes)
 
-6. Post-creation baseline (manual until AFT is deployed):
+6. Post-creation baseline (manual in this POC; AFT remains code-only unless applied later):
    - Switch role into new account
    - Enable GuardDuty
    - Enable Security Hub
@@ -236,7 +243,7 @@ Pattern: aws+ACCOUNT-NAME@yourdomain.com
 
 Examples:
   aws+shared-services@yourdomain.com
-  aws+poc-dev@yourdomain.com
+  aws+sandbox@yourdomain.com
   aws+tenant-a-dev@yourdomain.com
   aws+log-archive@yourdomain.com
 ```
@@ -247,8 +254,9 @@ All aliases route to one inbox. Replace `yourdomain.com` with your actual domain
 
 ## Account Baseline Checklist
 
-After every new account is created, complete this baseline
-(automated via AFT when deployed, manual until then):
+After every new account is created, complete this baseline.
+In this POC, AFT is written as code-only documentation, so this remains manual
+unless AFT is deliberately applied later:
 
 - [ ] GuardDuty enabled
 - [ ] Security Hub enabled (AWS Foundational + CIS standards)
