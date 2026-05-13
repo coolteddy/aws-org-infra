@@ -1,0 +1,21 @@
+# Copy this file to terraform.tfvars and fill in real values.
+# terraform.tfvars is gitignored — it never gets committed.
+
+region = "eu-west-2"
+
+# Pass this from the shared-services stack output after applying aws-shared-services-infra.
+tgw_id = "tgw-0123456789abcdef0"
+
+shared_services_vpc_cidr = "10.1.0.0/16"
+sandbox_vpc_cidr         = "10.2.0.0/16"
+
+# Test day: set to true to create the temporary management EC2 test instance.
+# Set back to false and apply to destroy it after TGW validation.
+create_tgw_test_instance = false
+
+tags = {
+  Project     = "aws-org-infra"
+  ManagedBy   = "terraform"
+  Environment = "management"
+  Temporary   = "true"
+}
