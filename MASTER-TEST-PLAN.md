@@ -1,264 +1,318 @@
 # Master Test Plan
 
 Single reference for all POC tests. Check this file first to know where you are.
-Detailed instructions for each test are in the linked files — this is the tracker.
+Update checkboxes as you complete each step.
 
 ---
 
-## Overall Progress
+## POC Principle
+
+Nothing in this environment is permanent unless explicitly marked to keep.
+Cost cleanup is part of the acceptance criteria — destroy every billable resource after validation.
+
+---
+
+## Code Status
 
 ```
-[ ] Test 1 — TGW (3-account hub-and-spoke routing)
-[ ] Test 2 — Security Baseline (GuardDuty + Security Hub + Config in sandbox)
-[ ] Test 3 — Security Infra (log-archive + audit accounts)
-[ ] Test 4 — Monitoring (logs, alarms, Discord, Grafana)
+[x] aws-terraform-modules        v1.0.0 tagged — all 15 modules
+[x] aws-shared-services-infra    feat/tgw-hub — VPC + TGW + RAM share + workflows (PR open)
+[x] aws-sandbox-infra            VPC + TGW attachment + EC2 test + security baseline + workflows
+[ ] aws-org-infra                accounts.tf (log-archive + audit) + 4-management-tgw-test/ not started
+[ ] aws-security-infra           no Terraform files yet
+```
+
+## Deployment Progress
+
+```
+[ ] Phase 0 — Accounts        log-archive + audit accounts created in aws-org-infra
+[ ] Phase 1 — Security infra  log-archive S3 bucket + delegated admin ready
+[ ] Phase 2 — TGW test        all 3 accounts built, all 6 ping paths pass
+[ ] Phase 3 — Security check  aggregation + Config delivery verified
+[ ] Phase 4 — Teardown        all billable test resources destroyed
+[ ] Phase 5 — Monitoring      logs, alarms, Discord, Grafana (deferred, build after POC)
 ```
 
 Mark each `[x]` as you complete it. Come back here when you lose track.
 
 ---
 
-## Prerequisites (do once, before current TGW and sandbox tests)
+## Phase 0 — Accounts (prerequisite for everything else)
 
-### In AWS console / CLI (one-time setup)
-- [ ] RAM org sharing enabled. First confirm the local management SSO profile, then run `aws ram enable-sharing-with-aws-organization --profile <management-profile>`
-- [ ] OIDC roles added in `aws-org-infra/2-organisation/github_oidc.tf` for shared-services and sandbox
+Add to `aws-org-infra/2-organisation/accounts.tf` and apply:
 
-### aws-terraform-modules (must be tagged first)
-- [ ] transit-gateway module written and tagged `v1.0.0`
-- [ ] All consuming repos reference `?ref=v1.0.0` (not main branch)
+```hcl
+resource "aws_organizations_account" "log_archive" {
+  name      = "log-archive"
+  email     = var.log_archive_email
+  parent_id = aws_organizations_organizational_unit.security.id
+  close_on_deletion = false
+  lifecycle { prevent_destroy = true }
+}
+
+resource "aws_organizations_account" "audit" {
+  name      = "audit"
+  email     = var.audit_email
+  parent_id = aws_organizations_organizational_unit.security.id
+  close_on_deletion = false
+  lifecycle { prevent_destroy = true }
+}
+```
+
+Also add OIDC roles in `aws-org-infra/2-organisation/github_oidc.tf` for:
+- `aws-security-infra` → log-archive account
+- `aws-security-infra` → audit account
+
+Checklist:
+- [ ] log-archive account created and visible in AWS Organizations console
+- [ ] audit account created and visible in AWS Organizations console
+- [ ] OIDC roles added for aws-security-infra (log-archive + audit)
+- [ ] RAM org sharing enabled: `aws ram enable-sharing-with-aws-organization --profile management-admin`
 
 ---
 
-## Test 1 — Transit Gateway
+## Phase 1 — Security Infrastructure
 
-**Owner:** aws-org-infra orchestrates; aws-shared-services-infra owns the hub; aws-sandbox-infra owns the sandbox spoke
-**Full plan:** this section
+**Repo:** `aws-security-infra`
+**Cost:** ~$0.50 total (GuardDuty + Security Hub on 30-day free trial)
+**Why first:** log-archive S3 bucket must exist before sandbox Config delivery channel can be enabled.
+
+### What to apply
+
+Apply `aws-security-infra` in one pass — Terraform resolves dependencies automatically.
+No `-target` flags needed.
+
+```
+log_archive.tf    S3 bucket + Object Lock GOVERNANCE 7-day + bucket policy
+cloudtrail.tf     Org-level CloudTrail → log-archive S3 (management events free)
+guardduty.tf      GuardDuty delegated admin → audit account + auto-enrol all accounts
+securityhub.tf    Security Hub delegated admin → audit account + CIS standard
+```
+
+Checklist:
+- [ ] log-archive S3 bucket created with Object Lock GOVERNANCE mode
+- [ ] CloudTrail org trail active (check: CloudTrail console → Trails)
+- [ ] GuardDuty delegated admin set to audit account
+- [ ] Security Hub delegated admin set to audit account
+
+**Keep after POC:** CloudTrail + log-archive S3 (free / negligible cost)
+**Destroy after POC:** GuardDuty + Security Hub if ongoing cost not acceptable (see Phase 4)
+
+---
+
+## Phase 2 — TGW Test
+
 **Cost:** ~$0.43 for 2 hours
 **Duration:** ~2 hours build + validation
 
 ### Topology
+
 ```
-Management (spoke 1)    Shared-services (hub)    Sandbox (spoke 2)
-10.0.0.0/16             10.1.0.0/16              10.2.0.0/16
-temp VPC + EC2          TGW + RAM share          VPC + EC2
-public subnet for SSM   2 public + 2 private     public subnet for SSM
-destroy after test      keep permanently         keep permanently
+Management (spoke 1 — temporary)    Shared-services (hub)    Sandbox (spoke 2 — permanent)
+10.0.0.0/16                         10.1.0.0/16              10.2.0.0/16
+1 public subnet                     2 public + 2 private     2 public + 2 private
+EC2 t3.nano + EIP                   EC2 t3.nano + EIP        EC2 t3.nano + EIP
+TGW attachment                      TGW + RAM share          TGW attachment
+DESTROY after test                  keep VPC + TGW           keep VPC
 ```
 
-This is a Transit Gateway transitive-routing test, not a VPC peering test.
-Management and sandbox must reach each other through TGW even though there is no
-direct peering connection between those VPCs.
+TGW transitive routing is the key proof: sandbox ↔ management must reach each other
+through TGW even though there is no direct peering between those two VPCs.
+
+### VPC allocations (do not change)
+
+| Account | CIDR | Subnets |
+|---|---|---|
+| Management (temp) | 10.0.0.0/16 | 1 public eu-west-2a — destroy after test |
+| Shared-services | 10.1.0.0/16 | 2 public + 2 private eu-west-2a/b — keep |
+| Sandbox | 10.2.0.0/16 | 2 public + 2 private eu-west-2a/b — keep |
 
 ### Pre-flight
+
 - [ ] No existing VPC using 10.0.0.0/16 in management account
   ```bash
-  aws ec2 describe-vpcs --query 'Vpcs[].CidrBlock' --profile <management-profile>
+  aws ec2 describe-vpcs --query 'Vpcs[].CidrBlock' --profile management-admin
   ```
-- [ ] RAM org sharing enabled (see prerequisites above)
-- [ ] TGW RAM share uses explicit principals only: sandbox account + temporary management account
-- [ ] Do not share the TGW to the whole AWS Organization
+- [ ] RAM org sharing enabled (Phase 0 prerequisite)
+- [ ] TGW RAM share will use explicit principals only: sandbox + temporary management
+- [ ] SCP check: verify Workloads OU SCPs do not block TGW attachment creation in sandbox
 
 ### Build sequence
-- [ ] Step 1: shared-services — 2 public + 2 private subnet VPC, TGW, explicit RAM share, TGW attachment, EC2 (apply first)
-- [ ] Step 2: sandbox — VPC, TGW attachment, routes to shared-services + management, EC2 (apply second)
-- [ ] Step 3: management — temp VPC, TGW attachment, routes to shared-services + sandbox, EC2 in `aws-org-infra/4-management-tgw-test` (apply third)
-- [ ] Step 4: verify TGW route table has all 3 CIDRs propagated
 
-### Validation
-- [ ] Test 1: `ping 10.1.x.x` from sandbox EC2 → success
-- [ ] Test 2: `ping 10.2.x.x` from shared-services EC2 → success
-- [ ] Test 3: `ping 10.1.x.x` from management EC2 → success
-- [ ] Test 4: `ping 10.0.x.x` from shared-services EC2 → success
-- [ ] Test 5: `ping 10.2.x.x` from management EC2 → success
-- [ ] Test 6: `ping 10.0.x.x` from sandbox EC2 → success
+Use gradual apply — comment out blocks you are not ready to apply yet, then
+uncomment and apply when ready. Caution: commenting out a resource that is
+already in state will cause Terraform to plan a destroy on next apply.
+
+- [ ] Step 1: Apply `aws-shared-services-infra` (VPC + TGW + RAM share)
+  - Set `create_tgw_test_instance = false` (default) until ready for test
+  - Set `tgw_test_account_ids = []` (default) until management account added
+
+- [ ] Step 2: Apply `aws-sandbox-infra` (VPC + TGW attachment)
+  - Pass `tgw_id` from shared-services output as variable
+  - Set `create_tgw_test_instance = false` (default) until ready for test
+
+- [ ] Step 3: Apply `aws-org-infra/4-management-tgw-test/` (management spoke)
+  - Add management account ID to `tgw_test_account_ids` in shared-services first
+  - Re-apply shared-services to update RAM share + add management route
+  - Then apply management spoke
+
+- [ ] Step 4: Enable test instances
+  - Set `create_tgw_test_instance = true` in shared-services + apply
+  - Set `create_tgw_test_instance = true` in sandbox + apply
+  - Management spoke has its own EC2 already (not gated by this flag)
+
+- [ ] Step 5: Verify TGW route table has all 3 CIDRs propagated
+  ```bash
+  aws ec2 search-transit-gateway-routes \
+    --transit-gateway-route-table-id tgw-rtb-XXXXXXXXXX \
+    --filters Name=type,Values=propagated \
+    --profile shared-services-admin
+  ```
+  Expected: 10.0.0.0/16, 10.1.0.0/16, 10.2.0.0/16 all propagated
+
+### Validation — all 6 ping paths must pass
+
 ```bash
-# Get into EC2 via SSM (no bastion needed)
-aws ssm start-session --target i-XXXXXXXXXX --profile shared-services-admin
-ping 10.2.0.x
+# Get into EC2 via SSM — no bastion needed
+aws ssm start-session --target i-XXXXXXXXXXXXXXXXX --profile <account>-admin
 ```
 
-### Teardown
-- [ ] Terminate all 3 test EC2 instances
-- [ ] Destroy management VPC + TGW attachment + temp resources
-- [ ] Remove the temporary management account principal from the TGW RAM share
-- [ ] Keep: shared-services TGW + VPC, sandbox VPC + TGW attachment
+| Test | From | To | Command | Expected |
+|---|---|---|---|---|
+| 1 | Sandbox EC2 | Shared-services EC2 | `ping 10.1.x.x` | ✅ |
+| 2 | Shared-services EC2 | Sandbox EC2 | `ping 10.2.x.x` | ✅ |
+| 3 | Management EC2 | Shared-services EC2 | `ping 10.1.x.x` | ✅ |
+| 4 | Shared-services EC2 | Management EC2 | `ping 10.0.x.x` | ✅ |
+| 5 | Management EC2 | Sandbox EC2 | `ping 10.2.x.x` | ✅ |
+| 6 | Sandbox EC2 | Management EC2 | `ping 10.0.x.x` | ✅ |
+
+Tests 5 and 6 prove transitive routing through TGW. VPC peering cannot do this.
 
 ---
 
-## Test 2 — Security Baseline (sandbox account)
+## Phase 3 — Security Validation
 
-**Owner:** aws-sandbox-infra
-**Full plan:** `aws-org-infra/SECURITY-INFRA-TEST-PLAN.md` (Steps 1–5 sandbox section)
-**Cost:** ~$0 (30-day free trial for GuardDuty + Security Hub)
-**Duration:** ~1 hour build, then leave running
+Run after Phase 2. Security infra was set up in Phase 1 — this phase verifies it works.
 
-### What gets enabled in sandbox
-```
-GuardDuty detector     ← threat detection
-Security Hub           ← CIS benchmark compliance checks
-Config recorder        ← resource change tracking → log-archive S3
-```
+### Security baseline in sandbox
 
-### Pre-flight
-- [ ] log-archive S3 bucket exists (Test 3 Step 1 must run first for Config delivery)
-- [ ] GuardDuty + Security Hub can be enabled independently (no log-archive dependency)
+Before enabling, check Workloads OU SCPs do not block GuardDuty or Config operations.
+If an SCP blocks them, relax it manually in the console, enable the services, then restore.
 
-### Build sequence
-- [ ] Enable GuardDuty in sandbox
-- [ ] Enable Security Hub + CIS standard in sandbox
-- [ ] Enable Config recorder (standalone, delivery channel added after log-archive exists)
+- [ ] Apply `aws-sandbox-infra` security baseline (already in `security_baseline.tf`)
+  - GuardDuty detector enabled
+  - Security Hub + CIS standard enabled
+  - Config recorder + delivery channel → log-archive S3 bucket
 
-### Validation
-- [ ] GuardDuty detector active in sandbox console
-- [ ] Security Hub showing CIS benchmark findings
-- [ ] Generate test GuardDuty finding:
+### Validation checks
+
+- [ ] Check 1: CloudTrail logs landing in log-archive S3
+  ```bash
+  aws s3 ls s3://loadberry-log-archive-eu-west-2/AWSLogs/ \
+    --profile log-archive-admin --recursive | head -20
+  ```
+
+- [ ] Check 2: Generate test GuardDuty finding in sandbox
   ```bash
   aws guardduty create-sample-findings \
-    --detector-id $(aws guardduty list-detectors --query 'DetectorIds[0]' --output text) \
+    --detector-id $(aws guardduty list-detectors --query 'DetectorIds[0]' --output text --profile sandbox-admin) \
     --finding-types "UnauthorizedAccess:EC2/SSHBruteForce" \
     --profile sandbox-admin
   ```
-- [ ] Test finding appears in sandbox GuardDuty console
 
-### Notes
-- GuardDuty delegation to audit account happens in Test 3 — findings stay local until then
-- Config delivery channel to log-archive S3 added in Test 3 after bucket exists
-
----
-
-## Test 3 — Security Infra (log-archive + audit accounts)
-
-**Owner:** aws-security-infra
-**Full plan:** `aws-security-infra/SECURITY-INFRA-TEST-PLAN.md`
-**Cost:** ~$0.50 total
-**Duration:** ~2 hours build + validation
-
-### What gets built
-```
-log-archive account    S3 bucket (Object Lock GOVERNANCE mode, 7-day retention)
-management account     Org-level CloudTrail → log-archive S3
-audit account          GuardDuty delegated admin (aggregates from all accounts)
-audit account          Security Hub delegated admin (aggregates from all accounts)
-sandbox account        Config delivery channel → log-archive S3 (completes Test 2)
-```
-
-### Pre-flight
-- [ ] log-archive account created in aws-org-infra (accounts.tf PR merged)
-- [ ] audit account created in aws-org-infra (accounts.tf PR merged)
-- [ ] CIDR.md still reserves 10.3.0.0/16 for log-archive and 10.4.0.0/16 for audit
-- [ ] OIDC roles added in `aws-org-infra/2-organisation/github_oidc.tf` for log-archive and audit
-- [ ] Test 2 complete (GuardDuty + Security Hub already running in sandbox)
-
-### Build sequence
-- [ ] Step 1: log-archive S3 bucket with Object Lock (GOVERNANCE, 7 days)
-- [ ] Step 2: org-level CloudTrail in management → log-archive S3
-- [ ] Step 3: GuardDuty delegated admin → audit account
-- [ ] Step 4: Security Hub delegated admin → audit account
-- [ ] Step 5: Config delivery channel in sandbox → log-archive S3
-
-### Validation
-- [ ] Check 1: CloudTrail logs landing in log-archive S3
-  ```bash
-  aws s3 ls s3://loadberry-log-archive-eu-west-2/AWSLogs/ --profile log-archive-admin --recursive | head -20
-  ```
-- [ ] Check 2: GuardDuty test finding from sandbox appears in audit account
+- [ ] Check 3: Verify finding appears in audit account (cross-account aggregation)
   ```bash
   aws guardduty list-findings \
     --detector-id $(aws guardduty list-detectors --query 'DetectorIds[0]' --output text --profile audit-admin) \
     --profile audit-admin
   ```
-- [ ] Check 3: Security Hub findings from sandbox visible in audit account
-- [ ] Check 4: Object Lock active on log-archive bucket
-- [ ] Check 5: CloudTrail log file validation passes
 
-### Teardown (after test)
-- [ ] Disable GuardDuty in sandbox (stops billing after free trial)
-- [ ] Stop Config recorder in sandbox
-- [ ] Disable Security Hub in sandbox
-- [ ] Keep: CloudTrail, log-archive S3 bucket, accounts (no per-account charge)
+- [ ] Check 4: Security Hub findings from sandbox visible in audit account
+- [ ] Check 5: Config snapshots landing in log-archive S3
+- [ ] Check 6: Object Lock active on log-archive bucket
+  ```bash
+  aws s3api get-object-lock-configuration \
+    --bucket loadberry-log-archive-eu-west-2 \
+    --profile log-archive-admin
+  ```
 
 ---
 
-## Test 4 — Monitoring (operational observability)
+## Phase 4 — Teardown
+
+Destroy in this exact order to avoid dependency errors.
+
+### TGW teardown order
+
+```
+1. Set create_tgw_test_instance = false in shared-services + apply  → destroys shared-services EC2
+   Set create_tgw_test_instance = false in sandbox + apply          → destroys sandbox EC2
+
+2. Destroy aws-org-infra/4-management-tgw-test/
+   → removes management EC2 + EIP + routes + TGW attachment + VPC
+
+3. Set tgw_test_account_ids = [] in shared-services + apply
+   → removes management from RAM share + removes management route
+
+4. Destroy sandbox TGW attachment + routes (target or full destroy)
+   → sandbox VPC STAYS — keep for future workloads
+
+5. Destroy shared-services TGW resources
+   → TGW, RAM share, TGW attachment, TGW routes destroyed
+   → shared-services VPC STAYS — keep as permanent hub
+```
+
+### VPC retention rules
+
+| VPC | Action | Reason |
+|---|---|---|
+| Management 10.0.0.0/16 | **Always destroy** | Temporary test VPC, no future use |
+| Shared-services 10.1.0.0/16 | **Keep** | Permanent hub — future ECR, Route53, services |
+| Sandbox 10.2.0.0/16 | **Keep** | Permanent workload VPC — Priority 3 needs it |
+
+### Security baseline teardown (if ongoing cost not acceptable)
+
+GuardDuty and Config have small ongoing costs after the 30-day free trial.
+If you want to stop them:
+
+1. Check Workloads OU SCPs — some deny GuardDuty/Config destroy operations
+2. Temporarily relax the SCP in the console if needed
+3. Run terraform destroy on security_baseline.tf resources in sandbox
+4. Restore the SCP
+5. Keep: CloudTrail + log-archive S3 (free / ~$0.01/month — real audit value)
+
+---
+
+## Phase 5 — Monitoring (deferred)
+
+Build after POC tests pass. Not part of the current test cycle.
 
 **Owner:** aws-shared-services-infra (SNS + Grafana) + aws-sandbox-infra (logs + alarms)
 **Full plan:** `aws-org-infra/MONITORING.md`
-**Cost:** ~$12-15/month
-**Duration:** ~3 hours build + validation
+**Cost:** ~$12-15/month ongoing
 
-### What gets built
+What gets built:
 ```
-Phase 1 — Passive logs
-  VPC Flow Logs → S3 (sandbox)
-  ALB access logs → S3 (sandbox)
-  RDS logs → CloudWatch Logs (sandbox)
-
-Phase 2 — Alerting
-  SNS central topic (shared-services)
-  Lambda → Discord webhook (shared-services)
-  CloudWatch Alarms → SNS (sandbox)
-  GuardDuty finding → EventBridge → SNS (security-infra)
-
-Phase 3 — EKS observability
-  Container Insights addon (sandbox)
-  Fluent Bit DaemonSet — pod logs + metrics
-
-Phase 4 — Grafana dashboard
-  Grafana workspace (shared-services)
-  CloudWatch OAM sink (org-infra)
-  OAM link from sandbox → sink (sandbox)
+VPC Flow Logs + ALB access logs + RDS logs → S3
+SNS central topic → Lambda → Discord webhook
+CloudWatch Alarms → SNS
+GuardDuty finding → EventBridge → SNS
+Container Insights + Fluent Bit (EKS only)
+Grafana workspace + CloudWatch OAM sink/link
 ```
-
-### Pre-flight
-- [ ] Discord #loadberry-aws-alerts channel created
-- [ ] Discord webhook URL created + stored in Secrets Manager
-- [ ] Test 1 complete (VPC + ALB exist in sandbox)
-- [ ] Test 2 complete (GuardDuty running in sandbox for alert testing)
-- [ ] EKS cluster running in sandbox (Phase 3 only)
-
-### Build sequence
-- [ ] Phase 1: VPC Flow Logs, ALB logs, RDS logs (apply to sandbox)
-- [ ] Phase 2: SNS + Discord Lambda (apply to shared-services), then Alarms (apply to sandbox)
-- [ ] Phase 3: Container Insights addon (apply to sandbox, requires EKS running)
-- [ ] Phase 4: Grafana workspace + OAM sink/link (apply to shared-services + org-infra)
-
-### Validation
-- [ ] VPC Flow Logs appear in S3 within 10 minutes
-- [ ] ALB access logs appear in S3 after first HTTP request
-- [ ] RDS logs appear in CloudWatch Logs group
-- [ ] Trigger test alarm → Discord notification received in #loadberry-aws-alerts
-  ```bash
-  # Manually set alarm to ALARM state for testing
-  aws cloudwatch set-alarm-state \
-    --alarm-name sandbox-alb-5xx-high \
-    --state-value ALARM \
-    --state-reason "Manual test" \
-    --profile sandbox-admin
-  ```
-- [ ] Container Insights shows pod CPU/memory in CloudWatch console
-- [ ] Grafana workspace accessible via SSO login
-- [ ] Grafana EKS dashboard shows sandbox cluster metrics
-
-### Teardown (optional — keep for ongoing use)
-- Monitoring is designed to run permanently
-- Container Insights (~$9/month) can be disabled if EKS is destroyed
-- Grafana workspace free for 90 days, then $9/user/month
 
 ---
 
-## Cost Summary — All Tests
+## Cost Summary
 
-| Test | One-time cost | Ongoing after test |
+| Phase | One-time | Ongoing after test |
 |---|---|---|
-| Test 1 — TGW | ~$0.43 (2hr) | ~$72/month (TGW + attachments) |
-| Test 2 — Security baseline | $0 (free trial) | ~$5-8/month after trial |
-| Test 3 — Security infra | ~$0.50 | ~$1/month (S3 + CloudTrail) |
-| Test 4 — Monitoring | ~$0 setup | ~$12-15/month |
-| **Total ongoing** | | **~$90-95/month** |
+| Phase 1 — Security infra | ~$0.50 | ~$1/month (S3 + CloudTrail only if GuardDuty/SHub disabled) |
+| Phase 2 — TGW test | ~$0.43 (2hr) | $0 after teardown |
+| Phase 3 — Security baseline | $0 (free trial) | ~$5-8/month if kept |
+| Phase 5 — Monitoring | ~$0 setup | ~$12-15/month |
 
-> Destroy EKS when not actively testing — saves $72/month alone.
-> TGW is the main ongoing cost (~$72/month) but is real production infrastructure.
+> Full POC test cost: under $1 if run within 30-day free trial window and TGW torn down after.
 
 ---
 
@@ -268,8 +322,8 @@ Phase 4 — Grafana dashboard
 |---|---|
 | `ACCOUNT.md` | Account inventory, OU structure, creation workflow |
 | `CIDR.md` | IP address allocations, subnet layout, TGW routing strategy |
-| `MASTER-TEST-PLAN.md` | Canonical cross-repo TGW build + validation sequence |
-| `aws-security-infra/SECURITY-INFRA-TEST-PLAN.md` | Full security infra build + validation |
+| `MASTER-TEST-PLAN.md` | This file — canonical cross-repo execution plan |
+| `aws-security-infra/SECURITY-INFRA-TEST-PLAN.md` | Full security infra build + validation detail |
 | `MONITORING.md` | Full monitoring build + Grafana + Discord setup |
 | `FINOPS.md` | Cost management plan (post-testing) |
 | `FINTECH.md` | Compliance plan — PCI DSS, SOC 2, GDPR (post-testing) |

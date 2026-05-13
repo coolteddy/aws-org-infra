@@ -13,6 +13,10 @@ github_sandbox_repo         = "aws-sandbox-infra"
 # e.g. you+aws-sandbox@gmail.com (routes to your main inbox, unique to AWS)
 sandbox_email = "you+aws-sandbox@gmail.com"
 
+# Unique emails for the security accounts — use Gmail aliases
+log_archive_email = "you+aws-log-archive@gmail.com"
+audit_email       = "you+aws-audit@gmail.com"
+
 tags = {
   Project     = "aws-org-infra"
   ManagedBy   = "terraform"

@@ -78,3 +78,55 @@ resource "aws_organizations_account" "sandbox" {
     managed_by   = "terraform"
   }
 }
+
+# ------------------------------------------------------------------------------
+# log-archive
+#
+# Immutable audit trail account in the Security OU.
+# Receives CloudTrail logs and AWS Config snapshots from all org accounts.
+# S3 bucket uses Object Lock — objects cannot be deleted before retention expires.
+# ------------------------------------------------------------------------------
+
+resource "aws_organizations_account" "log_archive" {
+  name      = "log-archive"
+  email     = var.log_archive_email
+  parent_id = aws_organizations_organizational_unit.security.id
+
+  close_on_deletion = false
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    account_type = "security"
+    purpose      = "immutable-audit-trail"
+    managed_by   = "terraform"
+  }
+}
+
+# ------------------------------------------------------------------------------
+# audit
+#
+# Security monitoring hub in the Security OU.
+# GuardDuty and Security Hub delegated admin — aggregates findings from all accounts.
+# Analysts work here, not in the log-archive account.
+# ------------------------------------------------------------------------------
+
+resource "aws_organizations_account" "audit" {
+  name      = "audit"
+  email     = var.audit_email
+  parent_id = aws_organizations_organizational_unit.security.id
+
+  close_on_deletion = false
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    account_type = "security"
+    purpose      = "guardduty-securityhub-hub"
+    managed_by   = "terraform"
+  }
+}
