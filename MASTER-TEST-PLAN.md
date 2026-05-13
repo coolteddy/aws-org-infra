@@ -18,20 +18,33 @@ Cost cleanup is part of the acceptance criteria — destroy every billable resou
 [x] aws-terraform-modules        v1.0.0 tagged — all 15 modules
 [x] aws-shared-services-infra    feat/tgw-hub — VPC + TGW + RAM share + workflows (PR open)
 [x] aws-sandbox-infra            VPC + TGW attachment + EC2 test + security baseline + workflows
-[ ] aws-org-infra                accounts.tf (log-archive + audit) + 4-management-tgw-test/ not started
+[x] aws-org-infra                accounts.tf (log-archive + audit) + OIDC role applied
+[x] aws-org-infra                4-management-tgw-test/ — written, not yet applied
 [ ] aws-security-infra           no Terraform files yet
 ```
 
 ## Deployment Progress
 
 ```
-[ ] Phase 0 — Accounts        log-archive + audit accounts created in aws-org-infra
+[x] Phase 0 — Accounts        log-archive + audit accounts created and applied
 [ ] Phase 1 — Security infra  log-archive S3 bucket + delegated admin ready
 [ ] Phase 2 — TGW test        all 3 accounts built, all 6 ping paths pass
 [ ] Phase 3 — Security check  aggregation + Config delivery verified
 [ ] Phase 4 — Teardown        all billable test resources destroyed
 [ ] Phase 5 — Monitoring      logs, alarms, Discord, Grafana (deferred, build after POC)
 ```
+
+### Phase 0 — COMPLETE
+
+Applied via GitHub Actions PR flow. Resources created:
+- log-archive account — Security OU
+- audit account — Security OU
+- github-actions-aws-security-infra OIDC gateway role (two-account target)
+- deny_security_monitoring_disable SCP — modified (already existed)
+
+**Important teardown note:** `deny_security_monitoring_disable` SCP blocks GuardDuty and Config
+destroy operations. Must temporarily relax this SCP before running `terraform destroy` on
+security baseline resources in sandbox. See Phase 4 teardown steps.
 
 Mark each `[x]` as you complete it. Come back here when you lose track.
 

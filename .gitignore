@@ -1,6 +1,9 @@
 # Claude Code instruction file — local only, not for public repos
 CLAUDE.md
 
+# Local writing drafts — not for public repos
+LINKEDIN.md
+
 # Terraform state — never commit
 *.tfstate
 *.tfstate.backup
