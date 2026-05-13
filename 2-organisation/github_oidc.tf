@@ -215,6 +215,73 @@ resource "aws_iam_role_policy" "github_aws_sandbox_infra_assume_role" {
 }
 
 # ------------------------------------------------------------------------------
+# IAM Role — aws-security-infra
+#
+# Gateway role for the security-infra Terraform repo.
+# Unlike shared-services and sandbox which each target one account, this role
+# must assume into TWO accounts — log-archive and audit — because aws-security-infra
+# manages both from a single Terraform root using provider aliases.
+#
+# Flow:
+#   GitHub aws-security-infra
+#     -> management account gateway role
+#     -> log-archive OrganizationAccountAccessRole  (S3 bucket, Object Lock)
+#     -> audit OrganizationAccountAccessRole        (GuardDuty + Security Hub delegated admin)
+# ------------------------------------------------------------------------------
+
+resource "aws_iam_role" "github_aws_security_infra" {
+  name        = "github-actions-aws-security-infra"
+  description = "Gateway role assumed by GitHub Actions in the aws-security-infra repo."
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "GitHubOIDCTrust"
+        Effect = "Allow"
+        Principal = {
+          Federated = aws_iam_openid_connect_provider.github.arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          }
+          StringLike = {
+            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_security_infra_repo}:*"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = var.tags
+}
+
+# Allow the security-infra gateway role to assume into both security accounts.
+# log-archive: owns the immutable S3 bucket and receives CloudTrail + Config data.
+# audit: owns GuardDuty and Security Hub delegated admin.
+resource "aws_iam_role_policy" "github_aws_security_infra_assume_role" {
+  name = "AssumeSecurityAccounts"
+  role = aws_iam_role.github_aws_security_infra.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AssumeSecurityAccounts"
+        Effect = "Allow"
+        Action = "sts:AssumeRole"
+        Resource = [
+          "arn:aws:iam::${aws_organizations_account.log_archive.id}:role/OrganizationAccountAccessRole",
+          "arn:aws:iam::${aws_organizations_account.audit.id}:role/OrganizationAccountAccessRole"
+        ]
+      }
+    ]
+  })
+}
+
+# ------------------------------------------------------------------------------
 # Template — add future repo roles below this block
 #
 # Pattern for each new Terraform repo:

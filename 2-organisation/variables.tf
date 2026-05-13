@@ -49,6 +49,26 @@ variable "sandbox_email" {
   # locally: add to terraform.tfvars (gitignored)
 }
 
+variable "log_archive_email" {
+  description = "Unique email address for the log-archive account (use a Gmail alias e.g. you+aws-log-archive@gmail.com)"
+  type        = string
+  sensitive   = true
+  # no default - add to terraform.tfvars (gitignored)
+}
+
+variable "audit_email" {
+  description = "Unique email address for the audit account (use a Gmail alias e.g. you+aws-audit@gmail.com)"
+  type        = string
+  sensitive   = true
+  # no default - add to terraform.tfvars (gitignored)
+}
+
+variable "github_security_infra_repo" {
+  description = "GitHub repository name for security-infra Terraform"
+  type        = string
+  default     = "aws-security-infra"
+}
+
 variable "tags" {
   description = "Tags applied to all resources in this layer"
   type        = map(string)
