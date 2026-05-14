@@ -180,38 +180,85 @@ through TGW even though there is no direct peering between those two VPCs.
 - [ ] TGW RAM share will use explicit principals only: sandbox + temporary management
 - [ ] SCP check: verify Workloads OU SCPs do not block TGW attachment creation in sandbox
 
-### Build sequence
+### Build sequence — all done on the same test day
 
-Use gradual apply — comment out blocks you are not ready to apply yet, then
-uncomment and apply when ready. Caution: commenting out a resource that is
-already in state will cause Terraform to plan a destroy on next apply.
+**Step 1 — VPC only, all 3 repos (local apply)**
 
-- [ ] Step 1: Apply `aws-shared-services-infra` (VPC + TGW + RAM share)
-  - Set `create_tgw_test_instance = false` (default) until ready for test
-  - Set `tgw_test_account_ids = []` (default) until management account added
+Verify CIDRs before wiring TGW. Comment out TGW resources, apply VPCs only.
 
-- [ ] Step 2: Apply `aws-sandbox-infra` (VPC + TGW attachment)
-  - Pass `tgw_id` from shared-services output as variable
-  - Set `create_tgw_test_instance = false` (default) until ready for test
+```bash
+# shared-services — comment out tgw.tf content, apply vpc.tf only
+cd aws-shared-services-infra
+export AWS_PROFILE=setnay-admin
+terraform apply   # creates VPC 10.1.0.0/16 only
 
-- [ ] Step 3: Apply `aws-org-infra/4-management-tgw-test/` (management spoke)
-  - Add management account ID to `tgw_test_account_ids` in shared-services first
-  - Re-apply shared-services to update RAM share + add management route
-  - Then apply management spoke
+# sandbox — comment out tgw_attachment.tf content, apply vpc.tf only
+cd aws-sandbox-infra
+terraform apply   # creates VPC 10.2.0.0/16 only
 
-- [ ] Step 4: Enable test instances
-  - Set `create_tgw_test_instance = true` in shared-services + apply
-  - Set `create_tgw_test_instance = true` in sandbox + apply
-  - Management spoke has its own EC2 already (not gated by this flag)
+# management — comment out tgw_attachment.tf + ec2_tgw_test.tf, apply vpc.tf only
+cd aws-org-infra/4-management-tgw-test
+terraform apply   # creates VPC 10.0.0.0/16 only
+```
 
-- [ ] Step 5: Verify TGW route table has all 3 CIDRs propagated
-  ```bash
-  aws ec2 search-transit-gateway-routes \
-    --transit-gateway-route-table-id tgw-rtb-XXXXXXXXXX \
-    --filters Name=type,Values=propagated \
-    --profile shared-services-admin
-  ```
-  Expected: 10.0.0.0/16, 10.1.0.0/16, 10.2.0.0/16 all propagated
+- [ ] VPC 10.1.0.0/16 created in shared-services
+- [ ] VPC 10.2.0.0/16 created in sandbox
+- [ ] VPC 10.0.0.0/16 created in management (no CIDR conflict confirmed)
+
+**Step 2 — TGW hub (shared-services via GitHub Actions)**
+
+Uncomment `tgw.tf`. Set variables:
+- `create_tgw_test_instance = true`
+- `tgw_test_account_ids = ["<management-account-id>"]`
+
+Push/merge to main → GitHub Actions apply runs.
+
+```bash
+terraform output transit_gateway_id   # capture this — needed for Steps 3 and 4
+```
+
+- [ ] TGW created in shared-services
+- [ ] RAM share created with sandbox + management as explicit principals
+- [ ] `transit_gateway_id` output captured
+
+**Step 3 — Sandbox TGW attachment + security baseline (GitHub Actions)**
+
+Uncomment `tgw_attachment.tf`. Set variables:
+- `tgw_id = "<from Step 2 output>"`
+- `create_tgw_test_instance = true`
+- `log_archive_bucket = "loadberry-log-archive-eu-west-2"`
+
+Update `TGW_ID` GitHub Actions variable. Push/merge to main → workflow runs.
+
+- [ ] Sandbox TGW attachment created
+- [ ] Security baseline applied (GuardDuty, Security Hub, Config recorder)
+- [ ] Routes to 10.1.0.0/16 and 10.0.0.0/16 in sandbox route tables
+
+**Step 4 — Management full spoke (local)**
+
+Uncomment everything in `4-management-tgw-test/`. Update `terraform.tfvars`:
+- `tgw_id = "<from Step 2 output>"`
+- `create_tgw_test_instance = true`
+
+```bash
+cd aws-org-infra/4-management-tgw-test
+terraform apply   # VPC + TGW attachment + routes + EC2 — all in one apply
+```
+
+- [ ] Management TGW attachment created
+- [ ] Routes to 10.1.0.0/16 and 10.2.0.0/16 in management route tables
+- [ ] Management test EC2 running
+
+**Step 5 — Verify TGW route table has all 3 CIDRs propagated**
+
+```bash
+aws ec2 search-transit-gateway-routes \
+  --transit-gateway-route-table-id tgw-rtb-XXXXXXXXXX \
+  --filters Name=type,Values=propagated \
+  --profile setnay-admin
+```
+
+- [ ] 10.0.0.0/16, 10.1.0.0/16, 10.2.0.0/16 all showing as propagated
 
 ### Validation — all 6 ping paths must pass
 
