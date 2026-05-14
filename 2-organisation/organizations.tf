@@ -35,3 +35,25 @@ resource "aws_organizations_organizational_unit" "tenant_a" {
   name      = "Tenant-A"
   parent_id = aws_organizations_organizational_unit.workloads.id
 }
+
+# ------------------------------------------------------------------------------
+# AWS Organizations trusted service access
+#
+# Enables org-level integration for security services. Required before
+# delegated admin and org trail features can be used.
+# CloudTrail: allows org-level trail creation covering all member accounts.
+# GuardDuty:  allows delegated admin setup and org auto-enrolment.
+# Security Hub: allows delegated admin setup and org aggregation.
+# ------------------------------------------------------------------------------
+
+resource "aws_organizations_aws_service_access" "cloudtrail" {
+  service_principal = "cloudtrail.amazonaws.com"
+}
+
+resource "aws_organizations_aws_service_access" "guardduty" {
+  service_principal = "guardduty.amazonaws.com"
+}
+
+resource "aws_organizations_aws_service_access" "securityhub" {
+  service_principal = "securityhub.amazonaws.com"
+}

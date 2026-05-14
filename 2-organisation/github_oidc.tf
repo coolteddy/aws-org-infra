@@ -410,14 +410,24 @@ resource "aws_iam_role_policy" "github_aws_security_infra_management_security_se
         Resource = "*"
       },
       {
-        Sid    = "ReadOrganizationsForSecurityDelegation"
+        Sid    = "ManageOrganizationsForSecurityDelegation"
         Effect = "Allow"
         Action = [
           "organizations:DescribeOrganization",
+          "organizations:EnableAWSServiceAccess",
+          "organizations:DisableAWSServiceAccess",
           "organizations:ListAWSServiceAccessForOrganization",
+          "organizations:RegisterDelegatedAdministrator",
+          "organizations:DeregisterDelegatedAdministrator",
           "organizations:ListDelegatedAdministrators",
           "organizations:ListDelegatedServicesForAccount"
         ]
+        Resource = "*"
+      },
+      {
+        Sid    = "CreateSecurityServiceLinkedRoles"
+        Effect = "Allow"
+        Action = "iam:CreateServiceLinkedRole"
         Resource = "*"
       }
     ]
