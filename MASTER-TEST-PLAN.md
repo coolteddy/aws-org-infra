@@ -50,6 +50,30 @@ Mark each `[x]` as you complete it. Come back here when you lose track.
 
 ---
 
+## Pre-flight — local AWS CLI profiles
+
+Before running any validation commands, you need one SSO profile per account.
+Terraform itself does not need these — only the manual validation CLI commands do.
+
+```bash
+aws configure sso
+# SSO start URL: https://d-9c674bca0e.awsapps.com/start/
+# SSO region: eu-west-2
+# Run through once per account and name each profile:
+```
+
+| Profile | Account | When needed |
+|---|---|---|
+| `setnay-admin` | Management | ✅ Already exists |
+| `setnay-sandbox` | Sandbox | ✅ Already exists |
+| `setnay-log-archive` | log-archive | Needed for Phase 1 + 3 validation |
+| `setnay-audit` | Audit | Needed for Phase 3 validation |
+
+- [ ] `setnay-log-archive` profile created
+- [ ] `setnay-audit` profile created
+
+---
+
 ## Phase 0 — Accounts (prerequisite for everything else)
 
 Add to `aws-org-infra/2-organisation/accounts.tf` and apply:
