@@ -364,6 +364,66 @@ resource "aws_iam_role_policy" "github_aws_sandbox_infra_tf_state" {
   })
 }
 
+resource "aws_iam_role_policy" "github_aws_security_infra_management_security_services" {
+  name = "ManageSecurityOrgServices"
+  role = aws_iam_role.github_aws_security_infra.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ManageOrganizationCloudTrail"
+        Effect = "Allow"
+        Action = [
+          "cloudtrail:CreateTrail",
+          "cloudtrail:UpdateTrail",
+          "cloudtrail:DeleteTrail",
+          "cloudtrail:StartLogging",
+          "cloudtrail:StopLogging",
+          "cloudtrail:GetTrail",
+          "cloudtrail:GetTrailStatus",
+          "cloudtrail:DescribeTrails",
+          "cloudtrail:ListTags",
+          "cloudtrail:AddTags",
+          "cloudtrail:RemoveTags"
+        ]
+        Resource = "arn:aws:cloudtrail:eu-west-2:${var.management_account_id}:trail/*"
+      },
+      {
+        Sid    = "ManageGuardDutyDelegatedAdmin"
+        Effect = "Allow"
+        Action = [
+          "guardduty:EnableOrganizationAdminAccount",
+          "guardduty:DisableOrganizationAdminAccount",
+          "guardduty:ListOrganizationAdminAccounts"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageSecurityHubDelegatedAdmin"
+        Effect = "Allow"
+        Action = [
+          "securityhub:EnableOrganizationAdminAccount",
+          "securityhub:DisableOrganizationAdminAccount",
+          "securityhub:ListOrganizationAdminAccounts"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ReadOrganizationsForSecurityDelegation"
+        Effect = "Allow"
+        Action = [
+          "organizations:DescribeOrganization",
+          "organizations:ListAWSServiceAccessForOrganization",
+          "organizations:ListDelegatedAdministrators",
+          "organizations:ListDelegatedServicesForAccount"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy" "github_aws_security_infra_tf_state" {
   name = "TerraformStateAccess"
   role = aws_iam_role.github_aws_security_infra.id
