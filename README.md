@@ -35,53 +35,69 @@ vended by this repo.
 ```
 aws-org-infra/
 │
-├── CLAUDE.md                        ← Claude Code instructions (auto-loaded)
-├── README.md                        ← this file - high-level overview
+├── CLAUDE.md                        ← session context (gitignored)
+├── README.md                        ← this file
+├── MASTER-TEST-PLAN.md              ← canonical cross-repo POC execution plan
+├── ACCOUNT.md                       ← account inventory and creation workflow
+├── CIDR.md                          ← IP address allocations per account
+├── MONITORING.md                    ← monitoring plan (post-POC)
+├── FINOPS.md                        ← cost management plan (post-POC)
+├── FINTECH.md                       ← compliance plan (post-POC)
 ├── .gitignore
 │
 ├── 1-bootstrap/                     ← run ONCE locally, never again
-│   ├── README.md                    ← setup instructions
-│   ├── main.tf                      (S3 state bucket + DynamoDB)
+│   ├── main.tf                      (S3 state bucket + DynamoDB lock table)
 │   ├── variables.tf
 │   ├── outputs.tf
 │   └── terraform.tfvars.example
 │
-├── 2-organisation/                  ← org structure, SCPs, SSO, OIDC
-│   ├── README.md                    ← full layer documentation
+├── 2-organisation/                  ← org structure, accounts, SCPs, SSO, OIDC
+│   ├── README.md
 │   ├── main.tf
 │   ├── variables.tf
 │   ├── outputs.tf
 │   ├── backend.tf
 │   ├── organizations.tf             (OUs)
+│   ├── accounts.tf                  (AWS accounts — one block per account)
 │   ├── scp_global.tf                (org-wide SCPs)
 │   ├── scp_workloads.tf             (workloads OU SCPs)
 │   ├── scp_prod.tf                  (prod account SCPs)
 │   ├── config_rules.tf              (org Config rules)
 │   ├── identity_center.tf           (SSO permission sets)
-│   └── github_oidc.tf               (GitHub Actions OIDC)
+│   ├── github_oidc.tf               (GitHub Actions OIDC gateway roles — all repos)
+│   └── ram.tf                       (RAM org sharing enablement)
 │
-├── 3-aft/                           ← account vending pipeline (code only in POC)
-│   ├── README.md                    ← AFT documentation
+├── 3-aft/                           ← account vending pipeline (code only — never applied in POC)
+│   ├── README.md
 │   ├── main.tf
 │   ├── variables.tf
 │   ├── outputs.tf
 │   ├── backend.tf
-│   ├── account-requests/            ← one file = one AWS account
-│   │   ├── README.md                ← how to add a new account
+│   ├── account-requests/
 │   │   ├── log-archive.tf
 │   │   ├── audit.tf
 │   │   └── shared-services.tf
 │   └── account-customizations/
-│       └── global/                  ← runs in every vended account
-│           ├── README.md
+│       └── global/
 │           ├── guardduty.tf
 │           ├── security-hub.tf
 │           └── baseline-iam.tf
 │
+├── 4-management-tgw-test/           ← temporary management TGW spoke (apply on test day only)
+│   ├── versions.tf
+│   ├── providers.tf
+│   ├── backend.tf
+│   ├── variables.tf
+│   ├── vpc.tf                       (10.0.0.0/16 — 1 public subnet)
+│   ├── tgw_attachment.tf            (attachment + routes to shared-services + sandbox)
+│   ├── ec2_tgw_test.tf              (t3.nano — destroy after test)
+│   ├── outputs.tf
+│   └── terraform.tfvars.example
+│
 └── .github/
     └── workflows/
         ├── 2-org-plan.yml           (PR → terraform plan)
-        ├── 2-org-apply.yml          (merge to main → apply)
+        ├── 2-org-apply.yml          (merge to main → apply with environment gate)
         ├── 3-aft-plan.yml
         └── 3-aft-apply.yml
 ```
@@ -145,23 +161,20 @@ One account per tenant per environment
 ```
 ROOT (Management Account)
 │
-├── Security OU                    ← Control Tower managed
-│   ├── log-archive                (immutable audit logs)
-│   └── audit                      (GuardDuty, Security Hub)
+├── Security OU
+│   ├── log-archive                ← immutable audit logs (S3 Object Lock)
+│   └── audit                      ← GuardDuty + Security Hub hub
 │
 ├── Shared OU
-│   └── shared-services            (ECR, Route 53, SES)
+│   └── shared-services            ← TGW hub, ECR, Route 53
 │
 └── Workloads OU
-    ├── Tenant-A OU                ← first tenant
-    │   ├── tenant-a-dev
-    │   ├── tenant-a-staging
-    │   └── tenant-a-prod
-    │
-    └── Tenant-B OU                ← future tenant
-        ├── tenant-b-dev
-        └── tenant-b-prod
+    └── Tenant-A OU
+        └── sandbox                ← POC workload account
 ```
+
+Current accounts applied: management, shared-services, sandbox, log-archive, audit.
+Future accounts (Loadberry production): per-tenant dev/staging/prod via AFT.
 
 ---
 
@@ -215,8 +228,9 @@ Current downstream targets:
 
 | Repo | Target account | Purpose |
 |------|----------------|---------|
-| `aws-shared-services-infra` | shared-services | Shared networking and platform services |
-| `aws-sandbox-infra` | sandbox | POC workload infrastructure |
+| `aws-shared-services-infra` | shared-services | TGW hub, ECR, Route 53 |
+| `aws-sandbox-infra` | sandbox | POC workload infrastructure + security baseline |
+| `aws-security-infra` | log-archive + audit | Log archive bucket, CloudTrail, GuardDuty, Security Hub |
 
 Account IDs, role ARNs, and other environment-specific values are configured in
 GitHub Actions variables or secrets. They are not committed to this repository.
@@ -253,9 +267,11 @@ account and repo that owns the resource.
 
 | Repo | Purpose |
 |------|---------|
-| `aws-org-infra` | This repo - organisation foundation |
-| `aws-terraform-modules` | Reusable Terraform modules (versioned) |
-| `{product}-infra` | Per-product tenant infrastructure |
+| `aws-org-infra` | This repo — organisation foundation, accounts, OIDC gateway roles |
+| `aws-terraform-modules` | Reusable Terraform modules — versioned via git tags |
+| `aws-shared-services-infra` | Shared platform — TGW hub, ECR, Route 53 |
+| `aws-sandbox-infra` | POC workload account — VPC, TGW spoke, security baseline |
+| `aws-security-infra` | Security accounts — log-archive + audit |
 
 ---
 

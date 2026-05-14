@@ -282,6 +282,124 @@ resource "aws_iam_role_policy" "github_aws_security_infra_assume_role" {
 }
 
 # ------------------------------------------------------------------------------
+# Terraform state backend access — one policy per downstream repo
+#
+# Every downstream gateway role needs S3 + DynamoDB permissions to run
+# terraform init. The backend (S3 bucket + DynamoDB lock table) lives in the
+# management account and uses the ambient OIDC role credentials — not the
+# assume_role credentials used for the target account. Without these policies,
+# terraform init fails with AccessDenied on s3:ListBucket.
+#
+# Each policy is scoped to only that repo's state key prefix so repos cannot
+# read or overwrite each other's state.
+# ------------------------------------------------------------------------------
+
+resource "aws_iam_role_policy" "github_aws_shared_services_infra_tf_state" {
+  name = "TerraformStateAccess"
+  role = aws_iam_role.github_aws_shared_services_infra.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ListTerraformStateBucket"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::loadberry-org-tf-state-eu-west-2"
+      },
+      {
+        Sid    = "ReadWriteState"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::loadberry-org-tf-state-eu-west-2/shared-services/*"
+      },
+      {
+        Sid    = "StateLocks"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DescribeTable",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:UpdateItem"
+        ]
+        Resource = "arn:aws:dynamodb:eu-west-2:${var.management_account_id}:table/loadberry-org-tf-locks"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "github_aws_sandbox_infra_tf_state" {
+  name = "TerraformStateAccess"
+  role = aws_iam_role.github_aws_sandbox_infra.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ListTerraformStateBucket"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::loadberry-org-tf-state-eu-west-2"
+      },
+      {
+        Sid    = "ReadWriteState"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::loadberry-org-tf-state-eu-west-2/sandbox/*"
+      },
+      {
+        Sid    = "StateLocks"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DescribeTable",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:UpdateItem"
+        ]
+        Resource = "arn:aws:dynamodb:eu-west-2:${var.management_account_id}:table/loadberry-org-tf-locks"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "github_aws_security_infra_tf_state" {
+  name = "TerraformStateAccess"
+  role = aws_iam_role.github_aws_security_infra.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ListTerraformStateBucket"
+        Effect   = "Allow"
+        Action   = "s3:ListBucket"
+        Resource = "arn:aws:s3:::loadberry-org-tf-state-eu-west-2"
+      },
+      {
+        Sid    = "ReadWriteState"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::loadberry-org-tf-state-eu-west-2/security/*"
+      },
+      {
+        Sid    = "StateLocks"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:DescribeTable",
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:UpdateItem"
+        ]
+        Resource = "arn:aws:dynamodb:eu-west-2:${var.management_account_id}:table/loadberry-org-tf-locks"
+      }
+    ]
+  })
+}
+
+# ------------------------------------------------------------------------------
 # Template — add future repo roles below this block
 #
 # Pattern for each new Terraform repo:

@@ -90,20 +90,26 @@ Checklist:
 **Cost:** ~$0.50 total (GuardDuty + Security Hub on 30-day free trial)
 **Why first:** log-archive S3 bucket must exist before sandbox Config delivery channel can be enabled.
 
-### What to apply
+### What to apply — two rounds
 
-Apply `aws-security-infra` in one pass — Terraform resolves dependencies automatically.
-No `-target` flags needed.
+**Round 1 — log-archive bucket first (unblocks sandbox Config delivery channel)**
 
 ```
 log_archive.tf    S3 bucket + Object Lock GOVERNANCE 7-day + bucket policy
+```
+
+Checklist:
+- [ ] log-archive S3 bucket created with Object Lock GOVERNANCE mode
+
+**Round 2 — after bucket is confirmed applied**
+
+```
 cloudtrail.tf     Org-level CloudTrail → log-archive S3 (management events free)
 guardduty.tf      GuardDuty delegated admin → audit account + auto-enrol all accounts
 securityhub.tf    Security Hub delegated admin → audit account + CIS standard
 ```
 
 Checklist:
-- [ ] log-archive S3 bucket created with Object Lock GOVERNANCE mode
 - [ ] CloudTrail org trail active (check: CloudTrail console → Trails)
 - [ ] GuardDuty delegated admin set to audit account
 - [ ] Security Hub delegated admin set to audit account
