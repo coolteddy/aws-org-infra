@@ -3,6 +3,7 @@ CLAUDE.md
 
 # Local writing drafts — not for public repos
 LINKEDIN.md
+LOADBERRY.md
 
 # Terraform state — never commit
 *.tfstate
