@@ -27,7 +27,7 @@ Cost cleanup is part of the acceptance criteria — destroy every billable resou
 
 ```
 [x] Phase 0 — Accounts        log-archive + audit accounts created and applied
-[ ] Phase 1 — Security infra  log-archive S3 bucket + delegated admin ready
+[x] Phase 1 — Security infra  log-archive S3 bucket + delegated admin ready
 [ ] Phase 2 — TGW test        all 3 accounts built, all 6 ping paths pass
 [ ] Phase 3 — Security check  aggregation + Config delivery verified
 [ ] Phase 4 — Teardown        all billable test resources destroyed
