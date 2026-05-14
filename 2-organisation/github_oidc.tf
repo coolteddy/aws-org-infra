@@ -372,7 +372,7 @@ resource "aws_iam_role_policy" "github_aws_security_infra_management_security_se
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ManageOrganizationCloudTrail"
+        Sid    = "ManageOrganizationCloudTrailTrails"
         Effect = "Allow"
         Action = [
           "cloudtrail:CreateTrail",
@@ -382,12 +382,17 @@ resource "aws_iam_role_policy" "github_aws_security_infra_management_security_se
           "cloudtrail:StopLogging",
           "cloudtrail:GetTrail",
           "cloudtrail:GetTrailStatus",
-          "cloudtrail:DescribeTrails",
           "cloudtrail:ListTags",
           "cloudtrail:AddTags",
           "cloudtrail:RemoveTags"
         ]
         Resource = "arn:aws:cloudtrail:eu-west-2:${var.management_account_id}:trail/*"
+      },
+      {
+        Sid    = "DescribeCloudTrails"
+        Effect = "Allow"
+        Action = "cloudtrail:DescribeTrails"
+        Resource = "*"
       },
       {
         Sid    = "ManageGuardDutyDelegatedAdmin"
