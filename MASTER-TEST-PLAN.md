@@ -16,11 +16,11 @@ Cost cleanup is part of the acceptance criteria — destroy every billable resou
 
 ```
 [x] aws-terraform-modules        v1.0.0 tagged — all 15 modules
-[x] aws-shared-services-infra    feat/tgw-hub — VPC + TGW + RAM share + workflows (PR open)
-[x] aws-sandbox-infra            VPC + TGW attachment + EC2 test + security baseline + workflows
+[x] aws-shared-services-infra    merged + applied — VPC + TGW + RAM share live
+[x] aws-sandbox-infra            merged + applied — VPC + TGW attachment + security baseline live
 [x] aws-org-infra                accounts.tf (log-archive + audit) + OIDC role applied
 [x] aws-org-infra                4-management-tgw-test/ — written, not yet applied
-[ ] aws-security-infra           no Terraform files yet
+[x] aws-security-infra           both rounds applied — CloudTrail + GuardDuty + Security Hub + Config bucket policy live
 ```
 
 ## Deployment Progress
@@ -28,9 +28,9 @@ Cost cleanup is part of the acceptance criteria — destroy every billable resou
 ```
 [x] Phase 0 — Accounts        log-archive + audit accounts created and applied
 [x] Phase 1 — Security infra  log-archive S3 bucket + delegated admin ready
-[ ] Phase 2 — TGW test        all 3 accounts built, all 6 ping paths pass
-[ ] Phase 3 — Security check  aggregation + Config delivery verified
-[ ] Phase 4 — Teardown        all billable test resources destroyed
+[x] Phase 2 — TGW test        all 3 accounts built, all 6 ping paths pass
+[x] Phase 4 — Teardown        all billable test resources destroyed
+[ ] Phase 3 — Security check  aggregation + Config delivery verified (no EC2/TGW needed)  ← NEXT
 [ ] Phase 5 — Monitoring      logs, alarms, Discord, Grafana (deferred, build after POC)
 ```
 
@@ -69,8 +69,8 @@ aws configure sso
 | `setnay-log-archive` | log-archive | Needed for Phase 1 + 3 validation |
 | `setnay-audit` | Audit | Needed for Phase 3 validation |
 
-- [ ] `setnay-log-archive` profile created
-- [ ] `setnay-audit` profile created
+- [x] `setnay-log-archive` profile created
+- [x] `setnay-audit` profile created
 
 ---
 
@@ -123,7 +123,7 @@ log_archive.tf    S3 bucket + Object Lock GOVERNANCE 7-day + bucket policy
 ```
 
 Checklist:
-- [ ] log-archive S3 bucket created with Object Lock GOVERNANCE mode
+- [x] log-archive S3 bucket created with Object Lock enabled (default retention removed — Config delivery incompatible with default retention)
 
 **Round 2 — after bucket is confirmed applied**
 
@@ -134,9 +134,9 @@ securityhub.tf    Security Hub delegated admin → audit account + CIS standard
 ```
 
 Checklist:
-- [ ] CloudTrail org trail active (check: CloudTrail console → Trails)
-- [ ] GuardDuty delegated admin set to audit account
-- [ ] Security Hub delegated admin set to audit account
+- [x] CloudTrail org trail active
+- [x] GuardDuty delegated admin set to audit account
+- [x] Security Hub delegated admin set to audit account
 
 **Keep after POC:** CloudTrail + log-archive S3 (free / negligible cost)
 **Destroy after POC:** GuardDuty + Security Hub if ongoing cost not acceptable (see Phase 4)
@@ -172,13 +172,10 @@ through TGW even though there is no direct peering between those two VPCs.
 
 ### Pre-flight
 
-- [ ] No existing VPC using 10.0.0.0/16 in management account
-  ```bash
-  aws ec2 describe-vpcs --query 'Vpcs[].CidrBlock' --profile management-admin
-  ```
-- [ ] RAM org sharing enabled (Phase 0 prerequisite)
-- [ ] TGW RAM share will use explicit principals only: sandbox + temporary management
-- [ ] SCP check: verify Workloads OU SCPs do not block TGW attachment creation in sandbox
+- [x] No existing VPC using 10.0.0.0/16 in management account (only default VPC 172.31.0.0/16)
+- [x] RAM org sharing enabled
+- [x] TGW RAM share uses explicit principals only: sandbox + management
+- [x] SCP check passed
 
 ### Build sequence — all done on the same test day
 
@@ -201,9 +198,9 @@ cd aws-org-infra/4-management-tgw-test
 terraform apply   # creates VPC 10.0.0.0/16 only
 ```
 
-- [ ] VPC 10.1.0.0/16 created in shared-services
-- [ ] VPC 10.2.0.0/16 created in sandbox
-- [ ] VPC 10.0.0.0/16 created in management (no CIDR conflict confirmed)
+- [x] VPC 10.1.0.0/16 created in shared-services (vpc-03a2d1e29da6f3b9f)
+- [x] VPC 10.2.0.0/16 created in sandbox (vpc-04b312cfa57f490bb)
+- [x] VPC 10.0.0.0/16 created in management (vpc-02eeacfbd2799c896)
 
 **Step 2 — TGW hub (shared-services via GitHub Actions)**
 
@@ -217,9 +214,9 @@ Push/merge to main → GitHub Actions apply runs.
 terraform output transit_gateway_id   # capture this — needed for Steps 3 and 4
 ```
 
-- [ ] TGW created in shared-services
-- [ ] RAM share created with sandbox + management as explicit principals
-- [ ] `transit_gateway_id` output captured
+- [x] TGW created in shared-services (tgw-0ca4741646065bbc8)
+- [x] RAM share created with sandbox + management as explicit principals
+- [x] `transit_gateway_id` captured: tgw-0ca4741646065bbc8
 
 **Step 3 — Sandbox TGW attachment + security baseline (GitHub Actions)**
 
@@ -230,9 +227,9 @@ Uncomment `tgw_attachment.tf`. Set variables:
 
 Update `TGW_ID` GitHub Actions variable. Push/merge to main → workflow runs.
 
-- [ ] Sandbox TGW attachment created
-- [ ] Security baseline applied (GuardDuty, Security Hub, Config recorder)
-- [ ] Routes to 10.1.0.0/16 and 10.0.0.0/16 in sandbox route tables
+- [x] Sandbox TGW attachment created (tgw-attach-07667827ee4501675)
+- [x] Security baseline applied (Security Hub + Config recorder — GuardDuty org-managed)
+- [x] Routes to 10.1.0.0/16 and 10.0.0.0/16 in sandbox route tables
 
 **Step 4 — Management full spoke (local)**
 
@@ -245,9 +242,9 @@ cd aws-org-infra/4-management-tgw-test
 terraform apply   # VPC + TGW attachment + routes + EC2 — all in one apply
 ```
 
-- [ ] Management TGW attachment created
-- [ ] Routes to 10.1.0.0/16 and 10.2.0.0/16 in management route tables
-- [ ] Management test EC2 running
+- [x] Management TGW attachment created (tgw-attach-0dc9f05b4d0373d38)
+- [x] Routes to 10.1.0.0/16 and 10.2.0.0/16 in management route tables
+- [x] Management test EC2 running (i-04bd03fe532b1db66, 10.0.0.214)
 
 **Step 5 — Verify TGW route table has all 3 CIDRs propagated**
 
@@ -258,7 +255,7 @@ aws ec2 search-transit-gateway-routes \
   --profile setnay-admin
 ```
 
-- [ ] 10.0.0.0/16, 10.1.0.0/16, 10.2.0.0/16 all showing as propagated
+- [x] 10.0.0.0/16, 10.1.0.0/16, 10.2.0.0/16 all showing as propagated (tgw-rtb-055841647aabdb356)
 
 ### Validation — all 6 ping paths must pass
 
@@ -269,12 +266,12 @@ aws ssm start-session --target i-XXXXXXXXXXXXXXXXX --profile <account>-admin
 
 | Test | From | To | Command | Expected |
 |---|---|---|---|---|
-| 1 | Sandbox EC2 | Shared-services EC2 | `ping 10.1.x.x` | ✅ |
-| 2 | Shared-services EC2 | Sandbox EC2 | `ping 10.2.x.x` | ✅ |
-| 3 | Management EC2 | Shared-services EC2 | `ping 10.1.x.x` | ✅ |
-| 4 | Shared-services EC2 | Management EC2 | `ping 10.0.x.x` | ✅ |
-| 5 | Management EC2 | Sandbox EC2 | `ping 10.2.x.x` | ✅ |
-| 6 | Sandbox EC2 | Management EC2 | `ping 10.0.x.x` | ✅ |
+| 1 | Shared-services EC2 | Sandbox EC2 `10.2.0.81` | `ping 10.2.0.81` | ✅ 0% loss |
+| 2 | Sandbox EC2 | Shared-services EC2 `10.1.0.62` | `ping 10.1.0.62` | ✅ 0% loss |
+| 3 | Shared-services EC2 | Management EC2 `10.0.0.214` | `ping 10.0.0.214` | ✅ 0% loss |
+| 4 | Management EC2 | Shared-services EC2 `10.1.0.62` | `ping 10.1.0.62` | ✅ 0% loss |
+| 5 | Management EC2 | Sandbox EC2 `10.2.0.81` | `ping 10.2.0.81` | ✅ 0% loss TRANSITIVE |
+| 6 | Sandbox EC2 | Management EC2 `10.0.0.214` | `ping 10.0.0.214` | ✅ 0% loss TRANSITIVE |
 
 Tests 5 and 6 prove transitive routing through TGW. VPC peering cannot do this.
 
@@ -319,6 +316,10 @@ If an SCP blocks them, relax it manually in the console, enable the services, th
 
 - [ ] Check 4: Security Hub findings from sandbox visible in audit account
 - [ ] Check 5: Config snapshots landing in log-archive S3
+  ```bash
+  aws s3 ls s3://loadberry-log-archive-eu-west-2/AWSLogs/ \
+    --profile setnay-log-archive --recursive | grep Config | head -10
+  ```
 - [ ] Check 6: Object Lock active on log-archive bucket
   ```bash
   aws s3api get-object-lock-configuration \
@@ -335,21 +336,10 @@ Destroy in this exact order to avoid dependency errors.
 ### TGW teardown order
 
 ```
-1. Set create_tgw_test_instance = false in shared-services + apply  → destroys shared-services EC2
-   Set create_tgw_test_instance = false in sandbox + apply          → destroys sandbox EC2
-
-2. Destroy aws-org-infra/4-management-tgw-test/
-   → removes management EC2 + EIP + routes + TGW attachment + VPC
-
-3. Set tgw_test_account_ids = [] in shared-services + apply
-   → removes management from RAM share + removes management route
-
-4. Destroy sandbox TGW attachment + routes (target or full destroy)
-   → sandbox VPC STAYS — keep for future workloads
-
-5. Destroy shared-services TGW resources
-   → TGW, RAM share, TGW attachment, TGW routes destroyed
-   → shared-services VPC STAYS — keep as permanent hub
+1. ✅ Set create_tgw_test_instance = false in all 3 repos + apply → all EC2 destroyed
+2. ✅ Management: commented out all resources + applied → VPC + TGW attachment + everything destroyed
+3. ✅ Sandbox: commented out tgw_attachment.tf + applied → TGW attachment + routes destroyed, VPC kept
+4. ✅ Shared-services: commented out tgw.tf + applied → TGW + RAM share + routes destroyed, VPC kept
 ```
 
 ### VPC retention rules
