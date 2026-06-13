@@ -30,7 +30,8 @@ Cost cleanup is part of the acceptance criteria — destroy every billable resou
 [x] Phase 1 — Security infra  log-archive S3 bucket + delegated admin ready
 [x] Phase 2 — TGW test        all 3 accounts built, all 6 ping paths pass
 [x] Phase 4 — Teardown        all billable test resources destroyed
-[ ] Phase 3 — Security check  aggregation + Config delivery verified (no EC2/TGW needed)  ← NEXT
+[x] Phase 3 — Security check  aggregation + Config delivery verified
+[ ] Security teardown         disable billable POC services through Terraform  ← NEXT
 [ ] Phase 5 — Monitoring      logs, alarms, Discord, Grafana (deferred, build after POC)
 ```
 
@@ -286,20 +287,21 @@ Run after Phase 2. Security infra was set up in Phase 1 — this phase verifies 
 Before enabling, check Workloads OU SCPs do not block GuardDuty or Config operations.
 If an SCP blocks them, relax it manually in the console, enable the services, then restore.
 
-- [ ] Apply `aws-sandbox-infra` security baseline (already in `security_baseline.tf`)
-  - GuardDuty detector enabled
+- [x] Apply `aws-sandbox-infra` security baseline (already in `security_baseline.tf`)
+  - GuardDuty enabled through organization management
   - Security Hub + CIS standard enabled
   - Config recorder + delivery channel → log-archive S3 bucket
 
 ### Validation checks
 
-- [ ] Check 1: CloudTrail logs landing in log-archive S3
+- [x] Check 1: CloudTrail logs landing in log-archive S3
+  - 920 CloudTrail objects observed in the first 1,000 listed objects
   ```bash
   aws s3 ls s3://loadberry-log-archive-eu-west-2/AWSLogs/ \
     --profile log-archive-admin --recursive | head -20
   ```
 
-- [ ] Check 2: Generate test GuardDuty finding in sandbox
+- [x] Check 2: Generate test GuardDuty finding in sandbox
   ```bash
   aws guardduty create-sample-findings \
     --detector-id $(aws guardduty list-detectors --query 'DetectorIds[0]' --output text --profile sandbox-admin) \
@@ -307,20 +309,30 @@ If an SCP blocks them, relax it manually in the console, enable the services, th
     --profile sandbox-admin
   ```
 
-- [ ] Check 3: Verify finding appears in audit account (cross-account aggregation)
+- [x] Check 3: Verify finding appears in audit account (cross-account aggregation)
+  - Sample `UnauthorizedAccess:EC2/SSHBruteForce` finding visible in audit CLI and console
+  - Historical `CloudTrailLoggingDisabled` finding investigated and archived
+  - Current organization trail confirmed logging with recent delivery and no error
   ```bash
   aws guardduty list-findings \
     --detector-id $(aws guardduty list-detectors --query 'DetectorIds[0]' --output text --profile audit-admin) \
     --profile audit-admin
   ```
 
-- [ ] Check 4: Security Hub findings from sandbox visible in audit account
-- [ ] Check 5: Config snapshots landing in log-archive S3
+- [x] Check 4: Security Hub findings from sandbox visible in audit account
+  - Initial gap: audit used `LOCAL` configuration with `AutoEnable=false` and had zero members
+  - Added `aws_securityhub_member.sandbox` through `aws-security-infra`
+  - Sandbox member status verified as `Enabled`
+  - Sandbox GuardDuty and compliance findings visible in audit
+- [x] Check 5: Config snapshots landing in log-archive S3
+  - 80 Config objects observed in the first 1,000 listed objects
   ```bash
   aws s3 ls s3://loadberry-log-archive-eu-west-2/AWSLogs/ \
     --profile setnay-log-archive --recursive | grep Config | head -10
   ```
-- [ ] Check 6: Object Lock active on log-archive bucket
+- [x] Check 6: Object Lock active on log-archive bucket
+  - `ObjectLockEnabled=Enabled`
+  - Default retention is absent; AWS Config does not support delivery when default retention is enabled
   ```bash
   aws s3api get-object-lock-configuration \
     --bucket loadberry-log-archive-eu-west-2 \
@@ -352,14 +364,23 @@ Destroy in this exact order to avoid dependency errors.
 
 ### Security baseline teardown (if ongoing cost not acceptable)
 
-GuardDuty and Config have small ongoing costs after the 30-day free trial.
-If you want to stop them:
+Security validation is complete. GuardDuty and Security Hub trials are ending, and
+AWS Config is usage-priced. Plan this teardown before executing it:
 
-1. Check Workloads OU SCPs — some deny GuardDuty/Config destroy operations
-2. Temporarily relax the SCP in the console if needed
-3. Run terraform destroy on security_baseline.tf resources in sandbox
-4. Restore the SCP
-5. Keep: CloudTrail + log-archive S3 (free / ~$0.01/month — real audit value)
+1. Inventory GuardDuty organization members to identify auto-enabled detectors
+2. Temporarily remove only GuardDuty + Config deny actions from `DenySecurityMonitoringDisable`
+3. In `aws-sandbox-infra`, remove Config recorder/delivery resources and sandbox Security Hub
+4. In `aws-security-infra`, remove Security Hub member, standards, delegated admin, and audit account enablement
+5. Remove GuardDuty organization configuration, delegated admin, audit detector, and auto-enabled member detectors
+6. Restore `DenySecurityMonitoringDisable`
+7. Verify GuardDuty, Security Hub, and Config no longer produce ongoing charges
+8. Keep CloudTrail + log-archive S3 (free / negligible cost and real audit value)
+
+### Immediate remediation after security teardown
+
+- [ ] HIGH `EC2.2`: remove all rules from the sandbox VPC default security group
+- [ ] MEDIUM `EC2.15`: disable automatic public IPv4 assignment on both sandbox public subnets
+- [ ] Implement both fixes in `aws-terraform-modules`, tag a new version, and update sandbox
 
 ---
 
