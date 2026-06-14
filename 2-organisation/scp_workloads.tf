@@ -123,7 +123,10 @@ resource "aws_organizations_policy" "require_mandatory_tags" {
   })
 }
 
-resource "aws_organizations_policy_attachment" "require_mandatory_tags" {
-  policy_id = aws_organizations_policy.require_mandatory_tags.id
-  target_id = aws_organizations_organizational_unit.workloads.id
-}
+# Temporarily detached after the TGW test because the current ec2:RunInstances
+# tag conditions also evaluate implicit ENI creation. Reattach only after the
+# SCP resource scope and EC2 module volume tagging are fixed.
+# resource "aws_organizations_policy_attachment" "require_mandatory_tags" {
+#   policy_id = aws_organizations_policy.require_mandatory_tags.id
+#   target_id = aws_organizations_organizational_unit.workloads.id
+# }
