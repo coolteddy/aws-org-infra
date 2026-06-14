@@ -148,28 +148,31 @@ resource "aws_organizations_policy" "deny_security_monitoring_disable" {
         ]
         Resource = "*"
       },
-      {
-        Sid    = "DenyGuardDutyDisable"
-        Effect = "Deny"
-        Action = [
-          "guardduty:DeleteDetector",
-          "guardduty:DisassociateFromMasterAccount",
-          "guardduty:DisassociateFromAdministratorAccount",
-          "guardduty:StopMonitoringMembers",
-          "guardduty:UpdateDetector"
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "DenyConfigDisable"
-        Effect = "Deny"
-        Action = [
-          "config:StopConfigurationRecorder",
-          "config:DeleteConfigurationRecorder",
-          "config:DeleteDeliveryChannel"
-        ]
-        Resource = "*"
-      }
+      # POC security teardown: GuardDuty and Config must be disabled before
+      # their free trials end. Restore both deny statements immediately after
+      # the Terraform-managed teardown is complete.
+      # {
+      #   Sid    = "DenyGuardDutyDisable"
+      #   Effect = "Deny"
+      #   Action = [
+      #     "guardduty:DeleteDetector",
+      #     "guardduty:DisassociateFromMasterAccount",
+      #     "guardduty:DisassociateFromAdministratorAccount",
+      #     "guardduty:StopMonitoringMembers",
+      #     "guardduty:UpdateDetector"
+      #   ]
+      #   Resource = "*"
+      # },
+      # {
+      #   Sid    = "DenyConfigDisable"
+      #   Effect = "Deny"
+      #   Action = [
+      #     "config:StopConfigurationRecorder",
+      #     "config:DeleteConfigurationRecorder",
+      #     "config:DeleteDeliveryChannel"
+      #   ]
+      #   Resource = "*"
+      # }
     ]
   })
 }
